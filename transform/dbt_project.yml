@@ -1,0 +1,53 @@
+name: kbo
+version: "0.1.0"
+config-version: 2
+
+profile: kbo
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+snapshot-paths: ["snapshots"]
+
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Aggregate cells below this many enterprises are rolled into "Other (suppressed)".
+  # Environment-driven so the Makefile and the MotherDuck Flight can raise it without a code change.
+  min_cell_size: "{{ env_var('KBO_MIN_CELL_SIZE', '5') | int }}"
+  # activity.csv carries several NACE versions; mixing them silently double-counts.
+  nace_version: "{{ env_var('KBO_NACE_VERSION', '2008') }}"
+
+models:
+  kbo:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  kbo:
+    +schema: staging
+    zipcode_province:
+      +column_types:
+        zip_from: INTEGER
+        zip_to: INTEGER
+        province_code: VARCHAR
+        province_name_nl: VARCHAR
+        province_name_en: VARCHAR
+        region_nl: VARCHAR
+        region_en: VARCHAR
+    nace_section:
+      +column_types:
+        division_from: INTEGER
+        division_to: INTEGER
+        section: VARCHAR
+        section_label_en: VARCHAR
+        section_label_nl: VARCHAR

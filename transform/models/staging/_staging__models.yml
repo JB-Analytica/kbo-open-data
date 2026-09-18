@@ -1,0 +1,123 @@
+version: 2
+
+models:
+  - name: stg_meta
+    description: >
+      One row for the whole extract: which snapshot the published numbers describe.
+      Cross-joined into the spine so the attribution travels with every mart.
+    columns:
+      - name: snapshot_date
+        description: The date the KBO extract describes, parsed from KBO's day-first format.
+        data_tests: [not_null, unique]
+      - name: extract_type
+        description: "`full` or `update`."
+      - name: extract_number
+        description: FOD Economie's sequence number for the extract.
+
+  - name: stg_code
+    description: >
+      One row per (category, code) -- the code table collapsed to a single preferred
+      description. Language preference (NL, then EN, then FR) is decided here and nowhere
+      else, so no other model has to know which languages an extract happens to carry.
+    columns:
+      - name: category
+        description: Code list the code belongs to. Part of the primary key.
+        data_tests: [not_null]
+      - name: code
+        description: The code value. Part of the primary key.
+        data_tests: [not_null]
+      - name: description
+        description: Preferred-language description. The only source of meaning for a code.
+        data_tests: [not_null]
+    # Grain (category, code) is asserted by tests/assert_stg_code_grain.sql -- a
+    # combination-of-columns unique test would mean taking on dbt_utils for one check.
+
+  - name: stg_enterprise
+    description: One row per registered enterprise, natural persons still included.
+    columns:
+      - name: enterprise_number
+        description: KBO enterprise number. Primary key.
+        data_tests: [unique, not_null]
+      - name: status_code
+        description: Coded status. Resolved to a meaning via int_code_resolution, never inline.
+        data_tests: [not_null]
+      - name: juridical_situation_code
+        description: Coded juridical situation (normal, judicial reorganisation, ...).
+      - name: type_of_enterprise_code
+        description: Coded. The column the natural-person exclusion turns on.
+        data_tests: [not_null]
+      - name: juridical_form_code
+        description: Coded legal form. NULL for natural persons, who have none.
+      - name: start_date
+        description: Registration start date, parsed from KBO's day-first format.
+      - name: dlt_load_id
+        description: dlt load that produced the row. Lineage only.
+
+  - name: stg_establishment
+    description: One row per establishment unit.
+    columns:
+      - name: establishment_number
+        description: KBO establishment number. Primary key.
+        data_tests: [unique, not_null]
+      - name: enterprise_number
+        description: The parent enterprise.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_enterprise')
+                field: enterprise_number
+      - name: start_date
+        description: Establishment start date, day-first in the source.
+      - name: dlt_load_id
+        description: dlt load that produced the row. Lineage only.
+
+  - name: stg_address
+    description: >
+      One row per address of an entity. Only postcode is kept -- street, house number and
+      municipality are personal data for the sole traders in this file and are dropped by
+      the loader before they ever land.
+    columns:
+      - name: entity_number
+        description: Enterprise or establishment number the address belongs to.
+        data_tests: [not_null]
+      - name: type_of_address_code
+        description: Coded address type. Resolved via int_code_resolution.
+      - name: zipcode
+        description: Belgian postcode as text. Foreign addresses may carry anything.
+      - name: date_striking_off
+        description: Date the address stopped being current; NULL while it is current.
+      - name: dlt_load_id
+        description: dlt load that produced the row. Lineage only.
+
+  - name: stg_activity
+    description: One row per declared activity of an entity, across all NACE versions.
+    columns:
+      - name: entity_number
+        description: Enterprise or establishment number.
+        data_tests: [not_null]
+      - name: activity_group_code
+        description: Coded activity group (VAT activities, EDRL, ...).
+      - name: nace_version
+        description: NACE revision the code belongs to. Several coexist in one extract.
+        data_tests: [not_null]
+      - name: nace_code
+        description: NACE code kept as text so a leading zero survives.
+      - name: classification_code
+        description: Coded. Main vs secondary activity; resolved via int_code_resolution.
+      - name: dlt_load_id
+        description: dlt load that produced the row. Lineage only.
+
+  - name: stg_branch
+    description: One row per branch of a foreign enterprise.
+    columns:
+      - name: branch_id
+        description: Branch identifier. Primary key.
+        data_tests: [unique, not_null]
+      - name: enterprise_number
+        description: The enterprise the branch belongs to.
+        data_tests: [not_null]
+      - name: start_date
+        description: Branch start date, day-first in the source.
+      - name: dlt_load_id
+        description: dlt load that produced the row. Lineage only.

@@ -1,0 +1,92 @@
+version: 2
+
+sources:
+  - name: kbo_raw
+    description: >
+      KBO Open Data (FOD Economie) as landed by the dlt loader. Every column is TEXT and
+      every missing value arrives as an empty string, never NULL -- parsing and blank
+      normalisation are the staging layer's job, and staging does both on every column. denomination.csv and contact.csv are deliberately
+      never loaded: company names and contact details have no place in this pipeline.
+    schema: kbo_raw
+    tables:
+      - name: meta
+        description: One row per extract metadata variable (SnapshotDate, ExtractType, ...).
+        columns:
+          - name: variable
+            description: Metadata key. Primary key of the table.
+            data_tests: [unique, not_null]
+          - name: value
+            description: Metadata value, as text.
+
+      - name: code
+        description: One row per (category, code, language). The only authority on what a code means.
+        columns:
+          - name: category
+            description: Code list the code belongs to, e.g. TypeOfEnterprise, Status, JuridicalForm.
+            data_tests: [not_null]
+          - name: code
+            description: The code value as KBO writes it. Never hardcode one in a model.
+            data_tests: [not_null]
+          - name: language
+            description: NL, FR or EN.
+            data_tests:
+              - accepted_values:
+                  arguments:
+                    values: ["NL", "FR", "EN"]
+          - name: description
+            description: The human-readable meaning, in `language`.
+
+      - name: enterprise
+        description: One row per registered enterprise, natural persons included.
+        columns:
+          - name: enterprise_number
+            description: KBO enterprise number, e.g. 0200.000.000. Primary key.
+            data_tests: [unique, not_null]
+          - name: type_of_enterprise
+            description: Coded. Distinguishes natural persons from legal persons.
+            data_tests: [not_null]
+          - name: juridical_form
+            description: Coded. Empty string for natural persons, who have no legal form.
+
+      - name: establishment
+        description: One row per establishment unit, linked to its parent enterprise.
+        columns:
+          - name: establishment_number
+            description: KBO establishment number. Primary key.
+            data_tests: [unique, not_null]
+          - name: enterprise_number
+            description: The parent enterprise.
+            data_tests: [not_null]
+
+      - name: address
+        description: One row per address of an entity (enterprise or establishment).
+        columns:
+          - name: entity_number
+            description: Enterprise or establishment number the address belongs to.
+            data_tests: [not_null]
+          - name: type_of_address
+            description: Coded. Registered office vs establishment unit.
+          - name: date_striking_off
+            description: Day-first date the address stopped being current; blank while current.
+
+      - name: activity
+        description: One row per (entity, activity group, NACE version, NACE code, classification).
+        columns:
+          - name: entity_number
+            description: Enterprise or establishment number.
+            data_tests: [not_null]
+          - name: nace_version
+            description: Which NACE revision the code belongs to. Several coexist in one extract.
+            data_tests: [not_null]
+          - name: nace_code
+            description: NACE code as text; 01130 must keep its leading zero.
+
+      - name: branch
+        description: One row per branch of a foreign enterprise.
+        columns:
+          - name: id
+            description: Branch identifier. Primary key.
+            data_tests: [unique, not_null]
+          - name: enterprise_number
+            description: The enterprise the branch belongs to.
+            data_tests: [not_null]

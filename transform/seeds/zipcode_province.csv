@@ -1,0 +1,14 @@
+zip_from,zip_to,province_code,province_name_nl,province_name_en,region_nl,region_en
+1000,1299,BRU,Brussels Hoofdstedelijk Gewest,Brussels-Capital Region,Brussels Hoofdstedelijk Gewest,Brussels-Capital Region
+1300,1499,WBR,Waals-Brabant,Walloon Brabant,Waals Gewest,Wallonia
+1500,1999,VBR,Vlaams-Brabant,Flemish Brabant,Vlaams Gewest,Flanders
+2000,2999,ANT,Antwerpen,Antwerp,Vlaams Gewest,Flanders
+3000,3499,VBR,Vlaams-Brabant,Flemish Brabant,Vlaams Gewest,Flanders
+3500,3999,LIM,Limburg,Limburg,Vlaams Gewest,Flanders
+4000,4999,LIE,Luik,Liege,Waals Gewest,Wallonia
+5000,5999,NAM,Namen,Namur,Waals Gewest,Wallonia
+6000,6599,HAI,Henegouwen,Hainaut,Waals Gewest,Wallonia
+6600,6999,LUX,Luxemburg,Luxembourg,Waals Gewest,Wallonia
+7000,7999,HAI,Henegouwen,Hainaut,Waals Gewest,Wallonia
+8000,8999,WVL,West-Vlaanderen,West Flanders,Vlaams Gewest,Flanders
+9000,9999,OVL,Oost-Vlaanderen,East Flanders,Vlaams Gewest,Flanders

@@ -1,0 +1,67 @@
+version: 2
+
+models:
+  - name: int_code_resolution
+    description: >
+      One row per concept the project depends on, resolved to a real KBO code by matching
+      the code table's description rather than by hardcoding a code value. This is the
+      single point of failure for the privacy design, which is why
+      `assert_expected_codes_resolve` guards it: if a future extract renames or drops a
+      description, the build fails instead of quietly publishing sole traders.
+    columns:
+      - name: concept
+        description: Stable internal name for what the code means. Primary key.
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - natural_person
+                  - legal_person
+                  - status_active
+                  - address_registered_office
+                  - classification_main
+      - name: category
+        description: The stg_code category the concept was resolved in.
+        data_tests: [not_null]
+      - name: code
+        description: The code value that currently carries this meaning. Never assume it is stable.
+        data_tests: [not_null]
+      - name: description
+        description: The description that matched, kept so a human can audit the resolution.
+        data_tests: [not_null]
+
+  - name: int_active_enterprise
+    description: >
+      The spine. One row per enterprise that is both a legal person (never a natural
+      person) and active, carrying the one registered-office postcode, the one main NACE
+      code in the configured version, and its establishment count. Nothing downstream may
+      read anything but this, so the natural-person exclusion cannot be forgotten.
+    columns:
+      - name: enterprise_number
+        description: KBO enterprise number. Primary key.
+        data_tests: [unique, not_null]
+      - name: juridical_form_code
+        description: Coded legal form, labelled in the mart from stg_code.
+        data_tests: [not_null]
+      - name: start_date
+        description: Registration start date.
+      - name: start_year
+        description: Calendar year of start_date, the cohort dimension.
+      - name: zipcode
+        description: >
+          Postcode of the current registered office, at most one per enterprise. NULL where
+          the enterprise has no un-struck-off registered office in the extract.
+      - name: nace_code
+        description: >
+          Lowest main-activity NACE code in var('nace_version'). NULL where the enterprise
+          declares no main activity in that version; lowest, so the pick is deterministic.
+      - name: nace_version
+        description: The NACE version nace_code belongs to. One version only, by design.
+      - name: establishment_count
+        description: Number of establishment units, 0 where there are none.
+        data_tests: [not_null]
+      - name: snapshot_date
+        description: The extract this row describes, cross-joined from stg_meta.
+        data_tests: [not_null]

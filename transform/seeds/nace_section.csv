@@ -1,0 +1,22 @@
+division_from,division_to,section,section_label_en,section_label_nl
+1,3,A,"Agriculture, forestry and fishing","Landbouw, bosbouw en visserij"
+5,9,B,Mining and quarrying,Winning van delfstoffen
+10,33,C,Manufacturing,Industrie
+35,35,D,"Electricity, gas, steam and air conditioning supply","Productie en distributie van elektriciteit, gas, stoom en gekoelde lucht"
+36,39,E,"Water supply; sewerage, waste management and remediation","Distributie van water; afval- en afvalwaterbeheer en sanering"
+41,43,F,Construction,Bouwnijverheid
+45,47,G,Wholesale and retail trade; repair of motor vehicles,Groot- en detailhandel; reparatie van auto's en motorfietsen
+49,53,H,Transportation and storage,Vervoer en opslag
+55,56,I,Accommodation and food service activities,Verschaffen van accommodatie en maaltijden
+58,63,J,Information and communication,Informatie en communicatie
+64,66,K,Financial and insurance activities,Financiele activiteiten en verzekeringen
+68,68,L,Real estate activities,Exploitatie van en handel in onroerend goed
+69,75,M,"Professional, scientific and technical activities","Vrije beroepen en wetenschappelijke en technische activiteiten"
+77,82,N,Administrative and support service activities,Administratieve en ondersteunende diensten
+84,84,O,Public administration and defence; compulsory social security,Openbaar bestuur en defensie; verplichte sociale verzekeringen
+85,85,P,Education,Onderwijs
+86,88,Q,Human health and social work activities,Menselijke gezondheidszorg en maatschappelijke dienstverlening
+90,93,R,"Arts, entertainment and recreation","Kunst, amusement en recreatie"
+94,96,S,Other service activities,Overige diensten
+97,98,T,Activities of households as employers,Huishoudens als werkgever
+99,99,U,Activities of extraterritorial organisations and bodies,Extraterritoriale organisaties en lichamen

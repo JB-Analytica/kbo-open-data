@@ -1,0 +1,55 @@
+version: 2
+
+seeds:
+  - name: zipcode_province
+    description: >
+      One row per contiguous Belgian postcode range. Ranges rather than 10,000 rows because
+      the mapping really is range-shaped. Brussels (1000-1299) is the Brussels-Capital
+      Region, which is not a province and is not folded into either Brabant.
+    columns:
+      - name: zip_from
+        description: First postcode in the range, inclusive. Part of the primary key.
+        data_tests: [unique, not_null]
+      - name: zip_to
+        description: Last postcode in the range, inclusive.
+        data_tests: [unique, not_null]
+      - name: province_code
+        description: Short code for the province. Repeated across non-contiguous ranges.
+        data_tests: [not_null]
+      - name: province_name_nl
+        description: Dutch province name.
+        data_tests: [not_null]
+      - name: province_name_en
+        description: English province name.
+        data_tests: [not_null]
+      - name: region_nl
+        description: Dutch region name.
+        data_tests: [not_null]
+      - name: region_en
+        description: English region name.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["Flanders", "Wallonia", "Brussels-Capital Region"]
+
+  - name: nace_section
+    description: >
+      One row per NACE Rev. 2 section, as the range of divisions (the first two digits of a
+      NACE code) it covers. A to U.
+    columns:
+      - name: division_from
+        description: First NACE division in the section, inclusive. Primary key.
+        data_tests: [unique, not_null]
+      - name: division_to
+        description: Last NACE division in the section, inclusive.
+        data_tests: [unique, not_null]
+      - name: section
+        description: Section letter, A through U.
+        data_tests: [unique, not_null]
+      - name: section_label_en
+        description: English section label.
+        data_tests: [not_null]
+      - name: section_label_nl
+        description: Dutch section label.
+        data_tests: [not_null]

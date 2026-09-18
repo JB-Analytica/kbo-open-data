@@ -1,0 +1,8 @@
+# Pinned to match uv.lock in the repo root, so the Flight and a local `uv sync` resolve
+# the same versions. Re-check with `grep -A1 '^name = "<pkg>"' uv.lock` after any
+# dependency bump; see docs/versions.md for why duckdb is pinned here specifically.
+duckdb==1.5.5
+dlt[duckdb]==1.30.0
+dbt-core==1.12.5
+dbt-duckdb==1.11.0
+paramiko==5.0.0

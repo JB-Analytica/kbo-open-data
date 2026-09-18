@@ -1,0 +1,160 @@
+version: 2
+
+models:
+  - name: agg_enterprises_by_legal_form
+    description: >
+      One row per legal form (plus at most one "Other (suppressed)" row). Active legal
+      persons only. Cells below var('min_cell_size') are rolled into the suppressed row.
+    columns:
+      - name: snapshot_date
+        description: The KBO extract these counts describe.
+        data_tests: [not_null]
+      - name: legal_form_code
+        description: KBO JuridicalForm code. NULL on the suppressed row. Primary key.
+        data_tests:
+          - unique:
+              arguments:
+                where: "is_suppressed_bucket = false"
+      - name: legal_form_label
+        description: Legal-form description from stg_code, in the preferred language.
+        data_tests: [not_null]
+      - name: enterprise_count
+        description: Active legal persons with this legal form.
+        data_tests: [not_null]
+      - name: share_of_total
+        description: enterprise_count over the sum of the published rows, so shares add to 1.
+        data_tests: [not_null]
+      - name: is_suppressed_bucket
+        description: True on the single row that absorbs every cell below the threshold.
+        data_tests: [not_null]
+
+  - name: agg_enterprises_by_nace_section
+    description: >
+      One row per NACE Rev. 2 section (plus at most one "Other (suppressed)" row). The
+      section comes from the first two digits of the main NACE code via the nace_section
+      seed. Enterprises with no main activity in var('nace_version') are NOT dropped: they
+      are counted in an explicit "Unknown" row, so the mart still reconciles to the spine.
+    columns:
+      - name: snapshot_date
+        description: The KBO extract these counts describe.
+        data_tests: [not_null]
+      - name: nace_section
+        description: >
+          NACE Rev. 2 section letter, "Unknown" for enterprises with no activity in the
+          chosen version, NULL on the suppressed row. Primary key.
+        data_tests:
+          - unique:
+              arguments:
+                where: "is_suppressed_bucket = false"
+          - relationships:
+              arguments:
+                to: ref('nace_section')
+                field: section
+              config:
+                where: "nace_section <> 'Unknown' and is_suppressed_bucket = false"
+      - name: nace_section_label
+        description: English section label from the seed, or "Unknown".
+        data_tests: [not_null]
+      - name: enterprise_count
+        description: Active legal persons whose main activity falls in this section.
+        data_tests: [not_null]
+      - name: share_of_total
+        description: enterprise_count over the sum of the published rows.
+        data_tests: [not_null]
+      - name: is_suppressed_bucket
+        description: True on the single row that absorbs every cell below the threshold.
+        data_tests: [not_null]
+
+  - name: agg_enterprises_by_province
+    description: >
+      One row per province (plus Brussels-Capital, which is a region and not a province,
+      and at most one "Other (suppressed)" row). Postcodes outside the seeded ranges --
+      foreign or missing registered offices -- are counted in an explicit "Unknown" row
+      rather than silently dropped.
+    columns:
+      - name: snapshot_date
+        description: The KBO extract these counts describe.
+        data_tests: [not_null]
+      - name: province_code
+        description: >
+          Seed province code, "UNK" for postcodes outside every range, NULL on the
+          suppressed row. Primary key.
+        data_tests:
+          - unique:
+              arguments:
+                where: "is_suppressed_bucket = false"
+          - relationships:
+              arguments:
+                to: ref('zipcode_province')
+                field: province_code
+              config:
+                where: "province_code <> 'UNK' and is_suppressed_bucket = false"
+      - name: province_name
+        description: English province name, or Brussels-Capital Region, or "Unknown".
+        data_tests: [not_null]
+      - name: region_name
+        description: English region name (Flanders, Wallonia, Brussels-Capital Region).
+        data_tests: [not_null]
+      - name: enterprise_count
+        description: Active legal persons whose registered office is in this province.
+        data_tests: [not_null]
+      - name: share_of_total
+        description: enterprise_count over the sum of the published rows.
+        data_tests: [not_null]
+      - name: is_suppressed_bucket
+        description: True on the single row that absorbs every cell below the threshold.
+        data_tests: [not_null]
+
+  - name: agg_enterprises_by_start_year
+    description: >
+      One row per registration start year (plus at most one suppressed row, on which
+      start_year is NULL). A cohort of entities that are active *now* -- not a count of
+      registrations in that year, because anything that has since stopped is gone.
+    columns:
+      - name: snapshot_date
+        description: The KBO extract these counts describe.
+        data_tests: [not_null]
+      - name: start_year
+        description: Calendar year of registration. NULL on the suppressed row. Primary key.
+        data_tests:
+          - unique:
+              arguments:
+                where: "is_suppressed_bucket = false"
+      - name: enterprise_count
+        description: Active legal persons registered in this year.
+        data_tests: [not_null]
+      - name: share_of_total
+        description: enterprise_count over the sum of the published rows.
+        data_tests: [not_null]
+      - name: is_suppressed_bucket
+        description: True on the single row that absorbs every cell below the threshold.
+        data_tests: [not_null]
+
+  - name: agg_establishments_per_enterprise
+    description: >
+      One row per establishment-count bucket. Buckets do not overlap: 0, 1, 2, 3-5, 6-10,
+      11+. bucket_sort_order exists so a chart can order them without parsing the label.
+    columns:
+      - name: snapshot_date
+        description: The KBO extract these counts describe.
+        data_tests: [not_null]
+      - name: establishment_bucket
+        description: Establishment-count band. Primary key.
+        data_tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: ["0", "1", "2", "3-5", "6-10", "11+", "Other (suppressed)"]
+      - name: bucket_sort_order
+        description: Display order, 1..6; 99 on the suppressed row so it sorts last.
+        data_tests: [not_null]
+      - name: enterprise_count
+        description: Active legal persons with this many establishment units.
+        data_tests: [not_null]
+      - name: share_of_total
+        description: enterprise_count over the sum of the published rows.
+        data_tests: [not_null]
+      - name: is_suppressed_bucket
+        description: True on the single row that absorbs every cell below the threshold.
+        data_tests: [not_null]

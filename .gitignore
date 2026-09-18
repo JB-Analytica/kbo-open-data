@@ -1,0 +1,48 @@
+# secrets and local config
+.env
+*.json.key
+service-account*.json
+.sa.json
+.claude/settings.local.json
+
+# python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# generated source system (deterministic: regenerate, do not commit)
+source_system/generated/
+
+# dlt / dbt run artefacts
+.dlt/pipelines/
+.dlt/secrets.toml
+transform/target/
+transform/dbt_packages/
+transform/logs/
+transform/.user.yml   # dbt's anonymous-usage id: per-machine, not project state
+logs/
+
+# dbt-preflight work directory and comment
+.preflight/
+.preflight-comment.md
+
+# Lightdash CLI download bookkeeping (local timestamps, not content)
+lightdash/.lightdash-metadata.json
+
+.DS_Store
+*.log
+
+# KBO extracts: large, and they contain personal data. Never committed.
+data/raw/*
+!data/raw/.gitkeep
+
+# Output of `make demo`. Synthetic, so it must never be mistaken for the published marts.
+data/demo/
+
+# local warehouse files
+*.duckdb
+*.duckdb.wal

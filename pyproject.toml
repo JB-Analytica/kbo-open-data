@@ -1,0 +1,69 @@
+[project]
+name = "kbo-open-data"
+version = "0.1.0"
+description = "Turn the Belgian company register (KBO Open Data) into a handful of published, privacy-safe aggregates."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "JB Analytica", email = "jarich.braeckevelt@gmail.com" }]
+keywords = ["kbo", "bce", "belgium", "open-data", "duckdb", "dbt", "dlt", "motherduck"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+]
+dependencies = [
+  "dlt[duckdb]>=1.10",
+  "duckdb>=1.1",
+  "dbt-core>=1.9,<2",          # dbt-duckdb has no 2.0-compatible release yet; see docs/versions.md
+  "dbt-duckdb>=1.9",
+  "python-dotenv>=1.0",
+  "typer>=0.15",
+  "pyarrow>=17",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=6",
+  "pre-commit>=4",
+  "ruff>=0.12",
+  "ty>=0.0.1a1",
+  "poethepoet>=0.32",
+]
+sftp = ["paramiko>=3.5"]
+
+[project.urls]
+Homepage = "https://github.com/JB-Analytica/kbo-open-data"
+Repository = "https://github.com/JB-Analytica/kbo-open-data"
+Issues = "https://github.com/JB-Analytica/kbo-open-data/issues"
+Changelog = "https://github.com/JB-Analytica/kbo-open-data/blob/main/CHANGELOG.md"
+
+[project.scripts]
+kbo = "ingest.cli:app"
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ingest*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.poe.tasks]
+lint = "ruff check ."
+fmt = "ruff format ."
+typecheck = "ty check ingest"
+test = "pytest"
+check = ["lint", "typecheck", "test"]

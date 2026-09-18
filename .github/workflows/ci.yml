@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run ty check ingest
+      - run: uv run pytest
+
+  pipeline:
+    name: End to end on the synthetic extract
+    runs-on: ubuntu-latest
+    needs: checks
+    # The whole pipeline runs with no credentials and no KBO registration. That is the
+    # promise the README makes to anyone cloning this, so CI has to keep making it.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync
+      - run: make demo
+      - name: The marts were published and are small enough to commit
+        run: |
+          ls -l data/demo/*.parquet
+          test "$(ls data/demo/*.parquet | wc -l)" -eq 5
+          test "$(du -sk data/demo | cut -f1)" -lt 4096
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-marts
+          path: data/demo/*.parquet
+
+  motherduck:
+    name: Deploy to MotherDuck
+    runs-on: ubuntu-latest
+    needs: pipeline
+    # Anything needing a secret is a separate job, gated on the secret existing, so a fork
+    # or a fresh clone stays green and honest about what it did not run.
+    if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: motherduck-deploy
+      cancel-in-progress: false
+    env:
+      HAS_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+        if: env.HAS_TOKEN == 'true'
+      - run: uv sync
+        if: env.HAS_TOKEN == 'true'
+      - name: Build the marts on MotherDuck
+        if: env.HAS_TOKEN == 'true'
+        env:
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+          DESTINATION: motherduck
+          # A throwaway database: this is a smoke test on synthetic data and must never
+          # touch the published `kbo` database that the share and the Dive read.
+          MOTHERDUCK_DATABASE: kbo_ci
+        run: make demo
+      - name: Skipped (no MOTHERDUCK_TOKEN secret)
+        if: env.HAS_TOKEN != 'true'
+        run: echo "Add the MOTHERDUCK_TOKEN repository secret to deploy to MotherDuck."

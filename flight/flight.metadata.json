@@ -1,0 +1,20 @@
+{
+  "//": "Declarative source of truth for the Flight definition, published through the MotherDuck API/MCP -- see README.md in this directory for the field-to-file mapping and how to publish it. Not a directory MotherDuck reads directly.",
+  "name": "kbo-open-data-refresh",
+  "schedule_cron": null,
+  "//schedule_cron": "Left unset (on-demand only) until the KBO daily file's publication time is confirmed. See the cron caveat in README.md before setting this to a real schedule.",
+  "config": {
+    "KBO_FLIGHT_REPO_URL": "https://github.com/JB-Analytica/kbo-open-data",
+    "KBO_FLIGHT_REPO_REF": "main",
+    "MOTHERDUCK_DATABASE": "kbo",
+    "KBO_SFTP_DIR": "",
+    "KBO_FLIGHT_REMOTE_NAME": "KboOpenData_Update.zip",
+    "KBO_DBT_THREADS": "2",
+    "KBO_MIN_CELL_SIZE": "5",
+    "KBO_NACE_VERSION": "2008"
+  },
+  "flight_secret_names": ["kbo_sftp"],
+  "//flight_secret_names": "The name of the MotherDuck secret, not of its parameters. Secret `kbo_sftp` with parameters KBO_SFTP_HOST, KBO_SFTP_USER and KBO_SFTP_PASSWORD is injected as kbo_sftp_KBO_SFTP_HOST and so on, which is what main.py reads.",
+  "access_token_name": "kbo-flight-service-account",
+  "max_runtime_sec": 3600
+}
