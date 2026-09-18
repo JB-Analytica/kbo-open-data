@@ -28,11 +28,13 @@ sources:
             description: The code value as KBO writes it. Never hardcode one in a model.
             data_tests: [not_null]
           - name: language
-            description: NL, FR or EN.
+            description: >
+              NL, FR or DE. KBO publishes no English descriptions at all -- the extract
+              carries Dutch, French and a short German subset, and nothing else.
             data_tests:
               - accepted_values:
                   arguments:
-                    values: ["NL", "FR", "EN"]
+                    values: ["NL", "FR", "DE"]
           - name: description
             description: The human-readable meaning, in `language`.
 

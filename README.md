@@ -5,23 +5,59 @@ Built by [JB Analytica](https://github.com/JB-Analytica).
 **The Belgian company register, turned into five published aggregates that answer one
 question: what does the Belgian company population actually look like?**
 
-Legal form, sector, province, start-year cohort. Nothing else. The register itself is a
-13-million-row pile of CSVs behind a registration wall, half of it personal data. What
-almost everyone actually wants from it is a few thousand rows of aggregates — and those fit
-in a file you can read on a laptop.
+Legal form, sector, province, start-year cohort. Nothing else. The register itself is 2.2 GB
+of CSVs behind a registration wall — 42 million rows, 39% of the entities in it private
+individuals. What almost everyone actually wants from it is a few hundred rows of aggregates,
+and those fit in 20 KB.
 
 So that is what this repo produces, and the aggregates are committed here. You can answer
 the question without registering with anybody, installing anything, or running a query.
 
 ## The numbers
 
-<!-- HEADLINE NUMBERS: filled in from the first run against a real KBO extract. Until then
-     this section is deliberately empty rather than populated with the synthetic demo
-     figures, which would read as real. See "Running it" below. -->
+From the extract of **17 September 2026**. Every figure below is in `data/published/`, which
+is 20 KB of Parquet in this repository — no registration, no account, no query needed.
 
-_Pending the first run against a real extract._ The shape of what lands here: total active
-non-natural-person enterprises, the top legal forms with their share, the province split,
-and the establishment-count distribution.
+**1,193,029 active companies**, once the 770,434 natural persons are excluded. That is 39% of
+the register removed before anything is published.
+
+| Establishments | Companies | Share |
+|---|---:|---:|
+| 0 | 378,140 | 31.7% |
+| 1 | 755,675 | 63.3% |
+| 2 | 44,257 | 3.7% |
+| 3–5 | 10,923 | 0.9% |
+| 6–10 | 2,251 | 0.19% |
+| 11+ | 1,783 | 0.15% |
+
+**95% of Belgian companies operate from one location or none.** Fewer than 1 in 250 has more
+than five. Whatever else the register is, it is not a country of large organisations.
+
+The top legal forms: Besloten Vennootschap 537,877 (45.1%), Vereniging zonder winstoogmerk
+140,901 (11.8%), Vereniging van mede-eigenaars 112,892 (9.5%), Naamloze vennootschap 78,210
+(6.6%), BVBA under the old statute 72,023 (6.0%). The long tail is 84 published forms and one
+suppressed row of 39 companies spread over 19 forms.
+
+By province: Antwerp 199,161 (16.7%), Brussels-Capital 174,233 (14.6%), East Flanders 141,171
+(11.8%), West Flanders 131,152 (11.0%), Flemish Brabant 114,986 (9.6%). Roughly 56% of
+companies sit in Flanders, 21% in Wallonia, 15% in Brussels, and 7.9% cannot be placed — see
+the caveats below.
+
+Start-year cohorts run from 1800 to 2026 across 151 published years, peaking in the most
+recent three (2025: 65,859; 2024: 63,950; 2023: 59,975). Read that with the survivorship
+caveat below, which is the whole point of it.
+
+### What the numbers do not say
+
+Two gaps are large enough that hiding them would be dishonest:
+
+- **46% of companies have no NACE 2008 sector**, and appear as a single `Unknown` row rather
+  than being dropped. Only 643,817 of 1,193,029 declare a main activity in that classification.
+  Under NACE 2025 the coverage is better — 742,028, or 62% — and moving to it is a live
+  decision rather than an oversight.
+- **7.9% (93,894) have no usable province.** 10,830 registered-office addresses carry a blank
+  postcode, 17,775 are struck off, 37,771 are foreign, and 27,518 are numeric postcodes that
+  fall outside every seeded range. They are an explicit `Unknown` row, never silently dropped.
 
 ## Attribution
 

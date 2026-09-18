@@ -22,9 +22,10 @@ ranked as (
         code,
         description,
         -- The only place in the project where language preference is decided.
+        -- KBO publishes NL, FR and a small DE subset; there is no English at all.
         row_number() over (
             partition by category, code
-            order by case language when 'NL' then 1 when 'EN' then 2 when 'FR' then 3 else 4 end
+            order by case language when 'NL' then 1 when 'FR' then 2 when 'DE' then 3 else 4 end
         ) as language_rank
     from renamed
     where description is not null

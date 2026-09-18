@@ -21,6 +21,9 @@ DUCKDB_PATH ?= $(ROOT)/kbo.duckdb
 PUBLISHED_DIR ?= $(ROOT)/data/published
 DEMO_DIR := $(ROOT)/data/demo
 DEMO_ZIP := $(ROOT)/data/raw/KboOpenData_SYNTHETIC_Full.zip
+# The demo gets its own warehouse file. Sharing DUCKDB_PATH would merge synthetic rows
+# into a real extract's tables -- same table names, same merge keys, silently wrong.
+DEMO_DUCKDB := $(ROOT)/kbo_demo.duckdb
 
 DBT := $(UV) dbt --no-use-colors
 DBT_DIRS := --project-dir $(ROOT)/transform --profiles-dir $(ROOT)/transform
@@ -63,7 +66,7 @@ demo-extract:  ## Write a synthetic KBO extract, so the pipeline runs with no KB
 .PHONY: demo
 demo: demo-extract  ## Run the whole pipeline on the synthetic extract
 	@mkdir -p $(DEMO_DIR)
-	KBO_ZIP=$(DEMO_ZIP) PUBLISHED_DIR=$(DEMO_DIR) $(MAKE) load transform publish
+	KBO_ZIP=$(DEMO_ZIP) PUBLISHED_DIR=$(DEMO_DIR) DUCKDB_PATH=$(DEMO_DUCKDB) $(MAKE) load transform publish
 
 .PHONY: test
 test:  ## Lint, type-check and run the Python tests
@@ -75,5 +78,5 @@ deploy:  ## Run the pipeline against MotherDuck (needs MOTHERDUCK_TOKEN)
 
 .PHONY: clean
 clean:  ## Remove the local warehouse, dbt artefacts and the synthetic extract
-	rm -f $(DUCKDB_PATH) $(DUCKDB_PATH).wal $(DEMO_ZIP)
+	rm -f $(DUCKDB_PATH) $(DUCKDB_PATH).wal $(DEMO_DUCKDB) $(DEMO_DUCKDB).wal $(DEMO_ZIP)
 	rm -rf $(DEMO_DIR) $(ROOT)/transform/target $(ROOT)/transform/logs $(ROOT)/.dlt/pipelines

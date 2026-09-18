@@ -5,6 +5,14 @@
 
     Natural persons are excluded HERE, not in the marts, so that no downstream model can
     reintroduce them by forgetting a filter.
+
+    The entity-type filter is an ALLOWLIST, not a denylist: an enterprise is kept only if
+    its type resolves to `legal_person`. Excluding the natural-person code instead would
+    admit every other value in the category by default -- TypeOfEnterprise also defines
+    `0` = "Onbekend", which no extract currently uses on an enterprise row but which would
+    walk straight into the marts the day one appears. For a pipeline whose whole premise
+    is that no natural person can reach a mart, an unrecognised entity type is exactly the
+    case that must be dropped rather than published.
 -#}
 
 with enterprise as (
@@ -46,7 +54,7 @@ code_resolution as (
 resolved as (
 
     select
-        max(case when concept = 'natural_person' then code end) as natural_person_code,
+        max(case when concept = 'legal_person' then code end) as legal_person_code,
         max(case when concept = 'status_active' then code end) as status_active_code,
         max(case when concept = 'address_registered_office' then code end) as registered_office_code,
         max(case when concept = 'classification_main' then code end) as classification_main_code
@@ -56,10 +64,11 @@ resolved as (
 
 eligible_enterprise as (
 
+    -- Allowlist: only what positively resolves to a legal person. See the header.
     select enterprise.*
     from enterprise
     cross join resolved
-    where enterprise.type_of_enterprise_code is distinct from resolved.natural_person_code
+    where enterprise.type_of_enterprise_code = resolved.legal_person_code
         and enterprise.status_code = resolved.status_active_code
 
 ),

@@ -38,6 +38,12 @@ models:
       person) and active, carrying the one registered-office postcode, the one main NACE
       code in the configured version, and its establishment count. Nothing downstream may
       read anything but this, so the natural-person exclusion cannot be forgotten.
+
+      The entity-type filter is an allowlist: a row is kept only if its TypeOfEnterprise
+      resolves to `legal_person`. Excluding the natural-person code instead would let
+      every other value through by default, including TypeOfEnterprise `0` ("Onbekend"),
+      which the code table defines and a future extract could start using. An entity type
+      the project does not recognise is dropped, not published.
     columns:
       - name: enterprise_number
         description: KBO enterprise number. Primary key.

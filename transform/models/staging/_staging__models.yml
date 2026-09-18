@@ -17,8 +17,10 @@ models:
   - name: stg_code
     description: >
       One row per (category, code) -- the code table collapsed to a single preferred
-      description. Language preference (NL, then EN, then FR) is decided here and nowhere
+      description. Language preference (NL, then FR, then DE) is decided here and nowhere
       else, so no other model has to know which languages an extract happens to carry.
+      KBO publishes no English descriptions: the real extract carries Dutch and French for
+      every code plus a short German subset, so every downstream description is Dutch.
     columns:
       - name: category
         description: Code list the code belongs to. Part of the primary key.
