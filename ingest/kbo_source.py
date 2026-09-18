@@ -198,9 +198,10 @@ def _reader(zip_path: Path, filename: str) -> Iterator[csv.DictReader]:
     because meta is consulted before there is a pipeline and row-at-a-time reads clearer.
     `utf-8-sig`, because KBO leads some files with a BOM.
     """
-    with _member(zip_path, filename) as handle, io.TextIOWrapper(
-        handle, encoding="utf-8-sig", newline=""
-    ) as text:
+    with (
+        _member(zip_path, filename) as handle,
+        io.TextIOWrapper(handle, encoding="utf-8-sig", newline="") as text,
+    ):
         yield csv.DictReader(text)
 
 
