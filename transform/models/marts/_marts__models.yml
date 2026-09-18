@@ -30,18 +30,21 @@ models:
 
   - name: agg_enterprises_by_nace_section
     description: >
-      One row per NACE Rev. 2 section (plus at most one "Other (suppressed)" row). The
-      section comes from the first two digits of the main NACE code via the nace_section
-      seed. Enterprises with no main activity in var('nace_version') are NOT dropped: they
-      are counted in an explicit "Unknown" row, so the mart still reconciles to the spine.
+      One row per NACE section (plus at most one "Other (suppressed)" row), in the
+      classification version var('nace_version') selects -- Rev. 2.1 (A-V) under 2025,
+      Rev. 2 (A-U) under 2008. The section letter comes from the first two digits of the
+      main NACE code via the nace_section seed; the label comes from stg_code, category
+      'Nace' || the version, so it is Dutch like every other label here. Enterprises with
+      no main activity in the chosen version are NOT dropped: they are counted in an
+      explicit "Unknown" row, so the mart still reconciles to the spine.
     columns:
       - name: snapshot_date
         description: The KBO extract these counts describe.
         data_tests: [not_null]
       - name: nace_section
         description: >
-          NACE Rev. 2 section letter, "Unknown" for enterprises with no activity in the
-          chosen version, NULL on the suppressed row. Primary key.
+          NACE section letter for var('nace_version'), "Unknown" for enterprises with no
+          activity in that version, NULL on the suppressed row. Primary key.
         data_tests:
           - unique:
               arguments:
@@ -53,7 +56,10 @@ models:
               config:
                 where: "nace_section <> 'Unknown' and is_suppressed_bucket = false"
       - name: nace_section_label
-        description: English section label from the seed, or "Unknown".
+        description: >
+          Dutch section description from stg_code (category 'Nace' || the version), or
+          "Unknown". Falls back to the bare section letter if the code table has no row for
+          it, so no enterprise is lost; assert_nace_section_mapping fails when it does.
         data_tests: [not_null]
       - name: enterprise_count
         description: Active legal persons whose main activity falls in this section.

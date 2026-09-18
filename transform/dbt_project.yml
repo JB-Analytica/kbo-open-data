@@ -18,7 +18,7 @@ vars:
   # Environment-driven so the Makefile and the MotherDuck Flight can raise it without a code change.
   min_cell_size: "{{ env_var('KBO_MIN_CELL_SIZE', '5') | int }}"
   # activity.csv carries several NACE versions; mixing them silently double-counts.
-  nace_version: "{{ env_var('KBO_NACE_VERSION', '2008') }}"
+  nace_version: "{{ env_var('KBO_NACE_VERSION', '2025') }}"
 
 models:
   kbo:
@@ -46,8 +46,7 @@ seeds:
         region_en: VARCHAR
     nace_section:
       +column_types:
+        nace_version: VARCHAR
         division_from: INTEGER
         division_to: INTEGER
         section: VARCHAR
-        section_label_en: VARCHAR
-        section_label_nl: VARCHAR

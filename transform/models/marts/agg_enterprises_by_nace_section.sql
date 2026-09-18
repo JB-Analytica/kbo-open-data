@@ -1,3 +1,23 @@
+{#-
+    Sector split of the spine, in the NACE version var('nace_version') selects.
+
+    Two separate things are needed to name a section, and they come from two separate
+    places on purpose:
+
+      * which section a division belongs to  -> the nace_section seed, numbers only.
+        This genuinely is not in the extract; it is the structure of the classification,
+        and it differs between versions (Rev. 2.1 moved every division from 61 up one
+        letter along, and added V).
+      * what that section is called          -> stg_code, category 'Nace' || the version.
+        KBO publishes the single-character section codes right next to the five-digit
+        ones, so there is no excuse for a hand-written label here. Same rule as every
+        other coded concept in this project: code.csv is the only authority.
+
+    A section letter with no row in the code table keeps its enterprises -- the letter
+    stands in as the label -- rather than dropping them. assert_nace_section_mapping
+    fails the build when that happens, so the fallback is a safety net, not a silence.
+-#}
+
 with active_enterprise as (
 
     select * from {{ ref('int_active_enterprise') }}
@@ -6,7 +26,25 @@ with active_enterprise as (
 
 nace_section as (
 
-    select * from {{ ref('nace_section') }}
+    select
+        division_from,
+        division_to,
+        section
+    from {{ ref('nace_section') }}
+    where nace_version = '{{ var("nace_version") }}'
+
+),
+
+section_label as (
+
+    -- The section letters sit in the same category as the five-digit codes, as
+    -- single-character codes. stg_code has already picked the preferred language.
+    select
+        code,
+        description
+    from {{ ref('stg_code') }}
+    where category = 'Nace{{ var("nace_version") }}'
+        and length(code) = 1
 
 ),
 
@@ -30,11 +68,15 @@ cells as (
     select
         divisions.snapshot_date,
         coalesce(nace_section.section, 'Unknown') as nace_section,
-        coalesce(nace_section.section_label_en, 'Unknown') as nace_section_label,
+        coalesce(
+            section_label.description, nace_section.section, 'Unknown'
+        ) as nace_section_label,
         count(*) as enterprise_count
     from divisions
     left join nace_section
         on divisions.division between nace_section.division_from and nace_section.division_to
+    left join section_label
+        on section_label.code = nace_section.section
     group by 1, 2, 3
 
 ),

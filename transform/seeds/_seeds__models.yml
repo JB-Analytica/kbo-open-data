@@ -35,21 +35,52 @@ seeds:
 
   - name: nace_section
     description: >
-      One row per NACE Rev. 2 section, as the range of divisions (the first two digits of a
-      NACE code) it covers. A to U.
+      Numeric ranges only: one row per (NACE version, section), as the range of divisions
+      (the first two digits of a NACE code) that section covers. No labels -- code.csv is
+      the only authority on what a code means, and the section letters live there too, in
+      category Nace2008 / Nace2025. The mart takes its label from stg_code.
+
+      Both versions are carried so var('nace_version') can be set back to 2008 without a
+      code change. They are not the same shape: Rev. 2 (2008) has 21 sections A-U, Rev. 2.1
+      (2025) has 22, A-V, and every division from 61 up sits one letter further along.
+      Division 45 exists only in 2008; Rev. 2.1 split it over G and T.
+
+      Source for the 2025 rows: the Eurostat NACE_R2_1 codelist, whose item codes carry the
+      section letter in front of the division (https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/codelist/ESTAT/NACE_R2_1).
     columns:
+      - name: nace_version
+        description: KBO NACE version these ranges describe. Matches var('nace_version').
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["2008", "2025"]
       - name: division_from
-        description: First NACE division in the section, inclusive. Primary key.
-        data_tests: [unique, not_null]
+        description: First NACE division in the section, inclusive. Primary key with nace_version.
+        data_tests:
+          - not_null
+          - unique:
+              name: nace_section_division_from_unique_within_2008
+              config:
+                where: "nace_version = '2008'"
+          - unique:
+              name: nace_section_division_from_unique_within_2025
+              config:
+                where: "nace_version = '2025'"
       - name: division_to
         description: Last NACE division in the section, inclusive.
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: section
-        description: Section letter, A through U.
-        data_tests: [unique, not_null]
-      - name: section_label_en
-        description: English section label.
-        data_tests: [not_null]
-      - name: section_label_nl
-        description: Dutch section label.
-        data_tests: [not_null]
+        description: >
+          Section letter. A-U under 2008, A-V under 2025. Joined to stg_code on category
+          'Nace' || nace_version to get the label, so it must be exactly the code KBO uses.
+        data_tests:
+          - not_null
+          - unique:
+              name: nace_section_section_unique_within_2008
+              config:
+                where: "nace_version = '2008'"
+          - unique:
+              name: nace_section_section_unique_within_2025
+              config:
+                where: "nace_version = '2025'"

@@ -14,6 +14,22 @@ All notable changes to this project are documented here, following
 - Small-cell suppression (fewer than 5 entities) before anything is published.
 - Aggregate marts committed as Parquet under `data/published/`.
 
+### Changed
+
+- The sector mart reads **NACE 2025 (Rev. 2.1)** by default instead of NACE 2008 (Rev. 2);
+  `KBO_NACE_VERSION` still overrides it. This is not a relabelling: Rev. 2.1 has 22 sections
+  (A–V) against Rev. 2's 21, and every division from 61 up sits one letter further along, so
+  412,274 of the 742,028 companies with a 2025 main activity would have carried the wrong
+  section letter under the old seed. The 2025 ranges come from the Eurostat `NACE_R2_1`
+  codelist, whose item codes carry the section letter in front of the division.
+- `nace_section` is now keyed by `nace_version` and carries **numbers only**. The section
+  labels come from `stg_code` (category `Nace2008` / `Nace2025`) like every other coded
+  concept in this project, so they are Dutch rather than hand-written English. A section
+  letter missing from `code.csv` keeps its enterprises, labelled with the bare letter, and
+  `assert_nace_section_mapping` fails the build when that happens.
+- The seed's shape changed, so an existing warehouse needs one
+  `dbt seed --full-refresh --select nace_section`. A fresh clone needs nothing.
+
 ### Fixed
 
 - First run against a real extract (2026-09-17) corrected three assumptions the synthetic

@@ -43,6 +43,12 @@ By province: Antwerp 199,161 (16.7%), Brussels-Capital 174,233 (14.6%), East Fla
 companies sit in Flanders, 21% in Wallonia, 15% in Brussels, and 7.9% cannot be placed — see
 the caveats below.
 
+By sector, once the 38% with no declared activity are set aside: professional, scientific and
+technical services 148,540 (12.4%), wholesale and retail 106,699 (8.9%), construction 92,667
+(7.8%), accommodation and food 43,991 (3.7%), real estate 43,582 (3.7%), telecoms and IT
+41,335 (3.5%). Sections follow **NACE Rev. 2.1**, which KBO publishes as `Nace2025`, and the
+labels come from KBO's own code table rather than a translation of ours.
+
 Start-year cohorts run from 1800 to 2026 across 151 published years, peaking in the most
 recent three (2025: 65,859; 2024: 63,950; 2023: 59,975). Read that with the survivorship
 caveat below, which is the whole point of it.
@@ -51,10 +57,10 @@ caveat below, which is the whole point of it.
 
 Two gaps are large enough that hiding them would be dishonest:
 
-- **46% of companies have no NACE 2008 sector**, and appear as a single `Unknown` row rather
-  than being dropped. Only 643,817 of 1,193,029 declare a main activity in that classification.
-  Under NACE 2025 the coverage is better — 742,028, or 62% — and moving to it is a live
-  decision rather than an oversight.
+- **38% of companies have no NACE 2025 sector**, and appear as a single `Unknown` row rather
+  than being dropped. 742,028 of 1,193,029 declare a main activity in NACE 2025 — better than
+  the 643,817 (54%) that declare one in NACE 2008, which is why the sector mart now reads the
+  2025 classification by default. Setting `KBO_NACE_VERSION=2008` switches it back.
 - **7.9% (93,894) have no usable province.** 10,830 registered-office addresses carry a blank
   postcode, 17,775 are struck off, 37,771 are foreign, and 27,518 are numeric postcodes that
   fall outside every seeded range. They are an explicit `Unknown` row, never silently dropped.

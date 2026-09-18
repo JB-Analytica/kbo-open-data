@@ -13,8 +13,10 @@ fixture that invents code descriptions cannot catch a description changing upstr
 which is exactly how "maatschappelijke zetel" survived here while the real extract said
 "Zetel". So: languages NL, FR and a short DE subset with no English anywhere, and the real
 TypeOfEnterprise, Status, TypeOfAddress and Classification codes with their real Dutch and
-French descriptions. The legal forms, NACE codes and everything generated from them stay
-fake.
+French descriptions -- and the real NACE section letters, because the sector mart takes its
+labels from the code table rather than from a seed, so a fixture without them would test a
+join that cannot fail. The legal forms, five-digit NACE codes and everything generated from
+them stay fake.
 """
 
 from __future__ import annotations
@@ -95,7 +97,266 @@ NACE_2008 = [
     ("90011", "Beoefening van uitvoerende kunsten", None, 2),
 ]
 
-NACE_2025 = [("62010", "Computerprogrammering", None, 1)]
+# The real extract gives nearly every enterprise a MAIN activity in BOTH 2008 and 2025, so
+# the fixture does too. A pool with one code in it would make the sector mart a single row
+# and prove nothing -- these fifteen land in fifteen different Rev. 2.1 sections, and
+# deliberately in different letters from their 2008 counterparts (62010 is J under 2008 and
+# K under 2025, 70220 is M then N, 86210 is Q then R), which is the whole point of the move.
+NACE_2025 = [
+    ("62010", "Computerprogrammering", None, 9),
+    ("70220", "Overige adviesbureaus op het gebied van bedrijfsbeheer", None, 11),
+    ("41201", "Algemene bouw van residentiele gebouwen", None, 10),
+    ("56101", "Eetgelegenheden met volledige bediening", None, 7),
+    ("47111", "Detailhandel in niet-gespecialiseerde winkels", None, 6),
+    ("86210", "Huisartspraktijken", None, 5),
+    ("68201", "Verhuur en exploitatie van eigen residentieel onroerend goed", None, 8),
+    ("01130", "Teelt van groenten en meloenen", None, 3),
+    ("49410", "Goederenvervoer over de weg", None, 4),
+    ("96021", "Haarverzorging", None, 3),
+    ("85592", "Beroepsopleiding", None, 2),
+    ("64200", "Holdings", None, 6),
+    ("10710", "Vervaardiging van brood en van vers banketbakkerswerk", None, 2),
+    ("35111", "Productie van elektriciteit", None, 1),
+    ("90011", "Beoefening van uitvoerende kunsten", None, 2),
+]
+
+# The section letters, copied from the real extract like the rest of the code table.
+# KBO publishes them as single-character codes in the same category as the five-digit
+# ones, which is why the seed carries no labels: 21 sections under 2008 (A-U), and the
+# "SECTIE X -- " prefix and the hyphenation artefacts are really in the source.
+NACE_2008_SECTIONS = [
+    (
+        "A",
+        "SECTIE A -- LANDBOUW, BOSBOUW EN VISSERIJ",
+        "SECTION A -- AGRICULTURE, SYLVICULTURE ET PÊCHE",
+    ),
+    (
+        "B",
+        "SECTIE B -- WINNING VAN DELFSTOFFEN",
+        "SECTION B -- INDUSTRIES EXTRACTIVES",
+    ),
+    (
+        "C",
+        "SECTIE C -- INDUSTRIE",
+        "SECTION C -- INDUSTRIE MANUFACTURIÈRE",
+    ),
+    (
+        "D",
+        "SECTIE D -- PRODUCTIE EN DISTRIBUTIE VAN ELEKTRICITEIT, GAS, STOOM EN GEKOELDE LUCHT",
+        "SECTION D -- PRODUCTION ET DISTRIBUTION D'ÉLECTRICITÉ, DE GAZ, DE VAPEUR ET "
+        "D'AIR CONDITIONNÉ",
+    ),
+    (
+        "E",
+        "SECTIE E -- DISTRIBUTIE VAN WATER; AFVAL- EN AFVAL-WATERBEHEER EN SANERING",
+        "SECTION E -- PRODUCTION ET DISTRIBUTION D'EAU; ASSAINISSEMENT, GESTION DES "
+        "DÉCHETS ET DÉPOLLUTION",
+    ),
+    (
+        "F",
+        "SECTIE F -- BOUWNIJVERHEID",
+        "SECTION F -- CONSTRUCTION",
+    ),
+    (
+        "G",
+        "SECTIE G -- GROOT- EN DETAILHANDEL; REPARATIE VAN AUTO'S EN MOTORFIETSEN",
+        "SECTION G -- COMMERCE DE GROS ET DE DETAIL; RÉPARATION DE VEHICULES "
+        "AUTOMOBILES ET DE MOTOCYCLES",
+    ),
+    (
+        "H",
+        "SECTIE H -- VERVOER EN OPSLAG",
+        "SECTION H -- TRANSPORTS ET ENTREPOSAGE",
+    ),
+    (
+        "I",
+        "SECTIE I -VERSCHAFFEN VAN ACCOMMODATIE EN MAALTIJDEN",
+        "SECTION I -- HÉBERGEMENT ET RESTAURATION",
+    ),
+    (
+        "J",
+        "SECTIE J -- INFORMATIE EN COMMUNICATIE",
+        "SECTION J -- INFORMATION ET COMMUNICATION",
+    ),
+    (
+        "K",
+        "SECTIE K -- FINANCIËLE ACTIVITEITEN EN VERZEKERINGEN",
+        "SECTION K -- ACTIVITÉS FINANCIÈRES ET D'ASSURANCE",
+    ),
+    (
+        "L",
+        "SECTIE L -- EXPLOITATIE VAN EN HANDEL IN ONROEREND GOED",
+        "SECTION L -- ACTIVITÉS IMMOBILIÈRES",
+    ),
+    (
+        "M",
+        "SECTIE M -- VRIJE BEROEPEN EN WETENSCHAPPELIJKE EN TECHNISCHE ACTIVITEITEN",
+        "SECTION M -- ACTIVITÉS SPÉCIALISÉES, SCIENTIFIQUES ET TECHNIQUES",
+    ),
+    (
+        "N",
+        "SECTIE N -- ADMINISTRATIEVE EN ONDERSTEUNENDE DIENSTEN",
+        "SECTION N -- ACTIVITÉS DE SERVICES ADMINISTRATIFS ET DE SOUTIEN",
+    ),
+    (
+        "O",
+        "SECTIE O -- OPENBAAR BESTUUR EN DEFENSIE; VERPLICHTE SOCIALE VERZEKERINGEN",
+        "SECTION O -- ADMINISTRATION PUBLIQUE ET DEFENSE; SECURIE SOCIALE OBLIGATOIRE",
+    ),
+    (
+        "P",
+        "SECTIE P -- ONDERWIJS",
+        "SECTION P -- ENSEIGNEMENT",
+    ),
+    (
+        "Q",
+        "SECTIE Q -- MENSELIJKE GEZONDHEIDSZORG EN MAATSCHAP-PELIJKE DIENSTVERLENING",
+        "SECTION Q -- SANTÉ HUMAINE ET ACTION SOCIALE",
+    ),
+    (
+        "R",
+        "SECTIE R -- KUNST, AMUSEMENT EN RECREATIE",
+        "SECTION R -- ARTS, SPECTACLES ET ACTIVITÉS RÉCRÉATIVES",
+    ),
+    (
+        "S",
+        "SECTIE S -- OVERIGE DIENSTEN",
+        "SECTION S -- AUTRES ACTIVITÉS DE SERVICES",
+    ),
+    (
+        "T",
+        "SECTIE T -- HUISHOUDENS ALS WERKGEVER; NIET-GEDIFFE-RENTIEERDE PRODUCTIE VAN "
+        "GOEDEREN EN DIENSTEN DOOR  HUISHOUDENS VOOR EIGEN GEBRUIK",
+        "SECTION T -- ACTIVITÉS DES MÉNAGES EN TANT QU'EMPLOYEURS; ACTIVITÉS "
+        "INDIFFÉRENCIÉES DES MÉNAGES EN TANT QUE PRODUCTEURS DE BIENS ET SERVICES POUR "
+        "USAGE PROPRE",
+    ),
+    (
+        "U",
+        "SECTIE U -- EXTRATERRITORIALE ORGANISATIES EN LICHAMEN",
+        "SECTION U -- ACTIVITÉS DES ORGANISMES EXTRA-TERRITORIAUX",
+    ),
+]
+
+# 22 sections under 2025 (A-V), and no "SECTIE" prefix -- KBO writes the two categories
+# differently. Reproduced verbatim so the demo mart shows what the real one shows.
+NACE_2025_SECTIONS = [
+    (
+        "A",
+        "LANDBOUW, BOSBOUW EN VISSERIJ",
+        "AGRICULTURE, SYLVICULTURE ET PÊCHE",
+    ),
+    (
+        "B",
+        "WINNING VAN DELFSTOFFEN",
+        "INDUSTRIES EXTRACTIVES",
+    ),
+    (
+        "C",
+        "INDUSTRIE",
+        "INDUSTRIE MANUFACTURIÈRE",
+    ),
+    (
+        "D",
+        "PRODUCTIE EN DISTRIBUTIE VAN ELEKTRICITEIT, GAS, STOOM EN GEKOELDE LUCHT",
+        "PRODUCTION ET DISTRIBUTION D’ÉLECTRICITÉ, DE GAZ, DE VAPEUR ET D’AIR CONDITIONNÉ",
+    ),
+    (
+        "E",
+        "DISTRIBUTIE VAN WATER; AFVAL- EN AFVALWATERBEHEER EN SANERING",
+        "PRODUCTION ET DISTRIBUTION D’EAU; ASSAINISSEMENT, GESTION DES DÉCHETS ET DÉPOLLUTION",
+    ),
+    (
+        "F",
+        "BOUWNIJVERHEID",
+        "CONSTRUCTION",
+    ),
+    (
+        "G",
+        "GROOT- EN DETAILHANDEL",
+        "COMMERCE",
+    ),
+    (
+        "H",
+        "VERVOER EN OPSLAG",
+        "TRANSPORTS ET ENTREPOSAGE",
+    ),
+    (
+        "I",
+        "VERSCHAFFEN VAN ACCOMMODATIE EN MAALTIJDEN",
+        "HÉBERGEMENT ET RESTAURATION",
+    ),
+    (
+        "J",
+        "ACTIVITEITEN VAN UITGEVERIJEN, OMROEPACTIVITEITEN EN PRODUCTIE EN DISTRIBUTIE VAN INHOUD",
+        "ÉDITION, DIFFUSION ET ACTIVITÉS DE PRODUCTION ET DE DISTRIBUTION DE CONTENU",
+    ),
+    (
+        "K",
+        "TELECOMMUNICATIE, COMPUTERPROGRAMMERING, CONSULTANCY, INFORMATICA- "
+        "INFRASTRUCTUUR EN ANDERE ACTIVITEITEN OP HET GEBIED VAN INFORMATIEDIENSTEN",
+        "TÉLÉCOMMUNICATIONS, PROGRAMMATION INFORMATIQUE, CONSEIL, INFRASTRUCTURE "
+        "INFORMATIQUE ET AUTRES ACTIVITÉS DE SERVICE D'INFORMATION",
+    ),
+    (
+        "L",
+        "FINANCIËLE ACTIVITEITEN EN VERZEKERINGEN",
+        "ACTIVITÉS FINANCIÈRES ET D’ASSURANCE",
+    ),
+    (
+        "M",
+        "EXPLOITATIE VAN EN HANDEL IN ONROEREND GOED",
+        "ACTIVITÉS IMMOBILIÈRES",
+    ),
+    (
+        "N",
+        "WETENSCHAPPELIJKE EN TECHNISCHE ACTIVITEITEN EN OVERIGE SPECIALISTISCHE "
+        "ZAKELIJKE DIENSTVERLENING",
+        "ACTIVITÉS SPÉCIALISÉES, SCIENTIFIQUES ET TECHNIQUES",
+    ),
+    (
+        "O",
+        "ADMINISTRATIEVE EN ONDERSTEUNENDE DIENSTEN",
+        "ACTIVITÉS DE SERVICE ADMINISTRATIF ET DE SOUTIEN",
+    ),
+    (
+        "P",
+        "OPENBAAR BESTUUR EN DEFENSIE; VERPLICHTE SOCIALE VERZEKERINGEN",
+        "ADMINISTRATION PUBLIQUE ET DÉFENSE; SÉCURITÉ SOCIALE OBLIGATOIRE",
+    ),
+    (
+        "Q",
+        "ONDERWIJS",
+        "ENSEIGNEMENT",
+    ),
+    (
+        "R",
+        "MENSELIJKE GEZONDHEIDSZORG EN MAATSCHAPPELIJKE DIENSTVERLENING",
+        "SANTÉ HUMAINE ET ACTIVITÉS D’ACTION SOCIALE",
+    ),
+    (
+        "S",
+        "KUNST, SPORT EN RECREATIE",
+        "ARTS, SPORTS ET ACTIVITÉS RÉCRÉATIVES",
+    ),
+    (
+        "T",
+        "OVERIGE DIENSTEN",
+        "AUTRES ACTIVITÉS DE SERVICES",
+    ),
+    (
+        "U",
+        "ACTIVITEITEN VAN HUISHOUDENS ALS WERKGEVER EN NIET-GEDIFFERENTIEERDE PRODUCTIE "
+        "VAN GOEDEREN EN DIENSTEN DOOR HUISHOUDENS VOOR EIGEN GEBRUIK",
+        "ACTIVITÉS DES MÉNAGES EN TANT QU’EMPLOYEURS; ACTIVITÉS INDIFFÉRENCIÉES DES "
+        "MÉNAGES EN TANT QUE PRODUCTEURS DE BIENS ET SERVICES POUR USAGE PROPRE",
+    ),
+    (
+        "V",
+        "ACTIVITEITEN VAN EXTRATERRITORIALE ORGANISATIES EN INSTANTIES",
+        "ACTIVITÉS DES ORGANISATIONS ET ORGANISMES EXTRATERRITORIAUX",
+    ),
+]
 
 ACTIVITY_GROUP = [("001", "BTW-activiteiten", None)]
 
@@ -168,8 +429,9 @@ class Enterprise:
     start_date: date
     zipcode: str
     municipality: str
-    nace_code: str
-    nace_version: str
+    # One main activity per NACE version, as the real extract carries them.
+    nace_code_2008: str
+    nace_code_2025: str
     establishments: int
 
 
@@ -197,9 +459,6 @@ def build_enterprises(rng: random.Random, count: int) -> list[Enterprise]:
         natural = rng.random() < 0.25
         type_of_enterprise = NATURAL_PERSON_CODE if natural else LEGAL_PERSON_CODE
         zipcode, municipality = rng.choice(PLACES)
-        nace_version, nace_pool = (
-            ("2008", NACE_2008) if rng.random() < 0.95 else ("2025", NACE_2025)
-        )
         establishments = rng.choices([0, 1, 2, 4, 8, 25], weights=[18, 60, 12, 6, 3, 1], k=1)[0]
         enterprises.append(
             Enterprise(
@@ -213,8 +472,8 @@ def build_enterprises(rng: random.Random, count: int) -> list[Enterprise]:
                 start_date=date(rng.randint(1970, 2026), rng.randint(1, 12), rng.randint(1, 28)),
                 zipcode=zipcode,
                 municipality=municipality,
-                nace_code=_weighted(rng, nace_pool)[0],
-                nace_version=nace_version,
+                nace_code_2008=_weighted(rng, NACE_2008)[0],
+                nace_code_2025=_weighted(rng, NACE_2025)[0],
                 establishments=establishments,
             )
         )
@@ -242,7 +501,9 @@ def _code_rows() -> list[list[str]]:
         ("JuridicalSituation", JURIDICAL_SITUATION),
         ("JuridicalForm", JURIDICAL_FORM),
         ("Nace2008", NACE_2008),
+        ("Nace2008", NACE_2008_SECTIONS),
         ("Nace2025", NACE_2025),
+        ("Nace2025", NACE_2025_SECTIONS),
         ("ActivityGroup", ACTIVITY_GROUP),
         ("Classification", CLASSIFICATION),
         ("TypeOfAddress", TYPE_OF_ADDRESS),
@@ -292,10 +553,13 @@ def write_extract(path: Path, count: int = 400, seed: int = 20260907) -> Path:
         # home address, and KBO does not publish one.
         if e.type_of_enterprise == LEGAL_PERSON_CODE:
             address_rows.append(_address_row(e.number, "REGO", e))
-        activity_rows.append([e.number, "001", e.nace_version, e.nace_code, "MAIN"])
-        if rng.random() < 0.3:
-            secondary = _weighted(rng, NACE_2008)[0]
-            activity_rows.append([e.number, "001", "2008", secondary, "SECO"])
+        # A MAIN row in each version. int_active_enterprise filters to exactly one of
+        # them, and summing across both is the double-count the filter exists to prevent.
+        activity_rows.append([e.number, "001", "2008", e.nace_code_2008, "MAIN"])
+        activity_rows.append([e.number, "001", "2025", e.nace_code_2025, "MAIN"])
+        for version, pool in (("2008", NACE_2008), ("2025", NACE_2025)):
+            if rng.random() < 0.3:
+                activity_rows.append([e.number, "001", version, _weighted(rng, pool)[0], "SECO"])
         for _ in range(e.establishments):
             establishment_seq += 1
             number = _establishment_number(establishment_seq * 13)

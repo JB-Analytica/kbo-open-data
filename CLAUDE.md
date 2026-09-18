@@ -66,7 +66,11 @@ it is the only copy of the rule a cloud session sees.
 - **KBO dates are day-first (`DD-MM-YYYY`).** Everything is loaded as TEXT and parsed in
   staging, deliberately, so type inference cannot read `03-04-2024` as 4 March.
 - **`activity.csv` carries several NACE versions.** Filter to one explicitly (`var('nace_version')`)
-  or every sector count is silently inflated.
+  or every sector count is silently inflated. The default is **2025** (NACE Rev. 2.1);
+  `KBO_NACE_VERSION` overrides it. The versions are not relabellings of each other: Rev. 2.1
+  has 22 sections (A-V) against Rev. 2's 21, and every division from 61 up sits one letter
+  further along, so `nace_section` carries a row set per version. The seed holds numbers
+  only -- the section *labels* come from `code.csv` like every other coded concept.
 - **dbt's working directory is `transform/`**, so a relative `DUCKDB_PATH` lands in the wrong
   place. The Makefile exports an absolute path; `profiles.yml` defaults to `../kbo.duckdb`
   for anyone running dbt by hand.

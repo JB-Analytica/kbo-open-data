@@ -1,22 +1,44 @@
-division_from,division_to,section,section_label_en,section_label_nl
-1,3,A,"Agriculture, forestry and fishing","Landbouw, bosbouw en visserij"
-5,9,B,Mining and quarrying,Winning van delfstoffen
-10,33,C,Manufacturing,Industrie
-35,35,D,"Electricity, gas, steam and air conditioning supply","Productie en distributie van elektriciteit, gas, stoom en gekoelde lucht"
-36,39,E,"Water supply; sewerage, waste management and remediation","Distributie van water; afval- en afvalwaterbeheer en sanering"
-41,43,F,Construction,Bouwnijverheid
-45,47,G,Wholesale and retail trade; repair of motor vehicles,Groot- en detailhandel; reparatie van auto's en motorfietsen
-49,53,H,Transportation and storage,Vervoer en opslag
-55,56,I,Accommodation and food service activities,Verschaffen van accommodatie en maaltijden
-58,63,J,Information and communication,Informatie en communicatie
-64,66,K,Financial and insurance activities,Financiele activiteiten en verzekeringen
-68,68,L,Real estate activities,Exploitatie van en handel in onroerend goed
-69,75,M,"Professional, scientific and technical activities","Vrije beroepen en wetenschappelijke en technische activiteiten"
-77,82,N,Administrative and support service activities,Administratieve en ondersteunende diensten
-84,84,O,Public administration and defence; compulsory social security,Openbaar bestuur en defensie; verplichte sociale verzekeringen
-85,85,P,Education,Onderwijs
-86,88,Q,Human health and social work activities,Menselijke gezondheidszorg en maatschappelijke dienstverlening
-90,93,R,"Arts, entertainment and recreation","Kunst, amusement en recreatie"
-94,96,S,Other service activities,Overige diensten
-97,98,T,Activities of households as employers,Huishoudens als werkgever
-99,99,U,Activities of extraterritorial organisations and bodies,Extraterritoriale organisaties en lichamen
+nace_version,division_from,division_to,section
+2008,1,3,A
+2008,5,9,B
+2008,10,33,C
+2008,35,35,D
+2008,36,39,E
+2008,41,43,F
+2008,45,47,G
+2008,49,53,H
+2008,55,56,I
+2008,58,63,J
+2008,64,66,K
+2008,68,68,L
+2008,69,75,M
+2008,77,82,N
+2008,84,84,O
+2008,85,85,P
+2008,86,88,Q
+2008,90,93,R
+2008,94,96,S
+2008,97,98,T
+2008,99,99,U
+2025,1,3,A
+2025,5,9,B
+2025,10,33,C
+2025,35,35,D
+2025,36,39,E
+2025,41,43,F
+2025,46,47,G
+2025,49,53,H
+2025,55,56,I
+2025,58,60,J
+2025,61,63,K
+2025,64,66,L
+2025,68,68,M
+2025,69,75,N
+2025,77,82,O
+2025,84,84,P
+2025,85,85,Q
+2025,86,88,R
+2025,90,93,S
+2025,94,96,T
+2025,97,98,U
+2025,99,99,V
