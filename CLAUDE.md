@@ -10,6 +10,7 @@ shop window for JB Analytica's stack — so the repo itself is part of the deliv
 uv sync --extra dev
 make demo                        # whole pipeline on a synthetic extract: no zip, no account
 make build                       # the real thing, from the zip named by KBO_ZIP in .env
+make deploy                      # build locally, then publish ONLY the marts to MotherDuck
 make test                        # uv run poe check -- ruff + ty + pytest
 uv run dbt build --project-dir transform --profiles-dir transform
 ```
@@ -38,7 +39,7 @@ it is the only copy of the rule a cloud session sees.
 
 ## Conventions specific to this repo
 
-- **Privacy is the design, not a filter.** Three layers, and a change may not weaken any of
+- **Privacy is the design, not a filter.** Four layers, and a change may not weaken any of
   them without saying so out loud:
   1. `denomination.csv` and `contact.csv` are never opened, and `ingest/` reads only an
      explicit allowlist of columns out of the files it does open. No name, street or contact
@@ -46,6 +47,10 @@ it is the only copy of the rule a cloud session sees.
   2. Natural-person entities are excluded at the **model** level, in
      `int_active_enterprise`, so they cannot reach a mart.
   3. Aggregate cells below `var('min_cell_size')` (5) are suppressed before publishing.
+  4. **The raw layer never leaves the machine that loaded it.** `dlt_destination` has no
+     cloud branch to take: dlt always writes the local DuckDB file, dbt always builds
+     against it, and `ingest/publish.py` copies only the `marts` schema anywhere else. The
+     770,434 natural persons cannot reach a cloud account even with a token present.
 - **Never hardcode a KBO code value.** `TypeOfEnterprise`, `Status`, `JuridicalForm`,
   `Classification` and `TypeOfAddress` are coded and `code.csv` is the only authority.
   `int_code_resolution` resolves each concept the project depends on by *description*, and
@@ -58,8 +63,18 @@ it is the only copy of the rule a cloud session sees.
   `agg_*` instead of `dim_`/`fct_`, because this is a single-source public repo where the
   names are read by strangers. dbt-preflight's `jba` preset would flag it, which is why
   preflight is not wired into this repo.
-- One dbt project, one profile, two targets. `DESTINATION=motherduck` is the only difference
-  between local and deployed; a model that knows which destination it is on is a bug.
+- **One dbt project, one profile, one target.** dbt always builds against the local DuckDB
+  file. `DESTINATION=motherduck` adds a publish step after the build; it does not move the
+  pipeline. A model that knows where the marts are published is a bug, and `profiles.yml`
+  must not grow a second output — with `DESTINATION=motherduck` there would be no matching
+  output and dbt would fail with a confusing profile error.
+- **`ingest/publish.py` discovers the marts from the warehouse catalog**, never from a list.
+  A sixth mart in dbt is published by the next run with no Python change. The target is a
+  parameter, so `tests/test_publish.py` publishes to a second local DuckDB file and asserts
+  the tables and row counts really arrived — no MotherDuck, no token, no network.
+- **A MotherDuck token goes through the environment, never into a connection string.**
+  DuckDB echoes connection strings into its error messages and a Flight's logs are readable
+  by anyone who can see the Flight.
 
 ## Gotchas
 

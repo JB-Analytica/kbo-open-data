@@ -17,6 +17,13 @@ into a Flight definition through the API or MCP tools -- see the field mapping b
 
 ## What it does
 
+**The raw layer never leaves the container.** The Flight loads the extract into a DuckDB
+file under `/tmp` -- the container has 150 GB of scratch there -- builds the marts against
+that same file, and copies only the five aggregate marts (276 rows, about 20 KB as
+Parquet) into MotherDuck. The 41 million raw rows, 770,434 of them natural persons, are deleted with the
+rest of the staging directory when the run ends. There is no code path from `kbo_raw` to
+MotherDuck, which also keeps the published database well inside a 10 GB free tier.
+
 On each run, `main.py`:
 
 1. Reads its non-secret configuration from the environment (`config`, below).
@@ -27,13 +34,20 @@ On each run, `main.py`:
 4. Clones the public repo (`KBO_FLIGHT_REPO_URL`, MIT, public) at `KBO_FLIGHT_REPO_REF`
    into `/tmp/`, since the Flight container does not carry this repo's `ingest/` and
    `transform/` on its own.
-5. Runs the dlt load, then `dbt build --project-dir transform --profiles-dir transform
-   --target motherduck`, then the `export_marts` run-operation.
-6. Verifies the result -- row counts and the snapshot date landed in each of the five
-   marts, and that all five agree on the same snapshot date -- rather than trusting a
-   zero exit code. A verification failure fails the run.
-7. Cleans up everything it staged under `/tmp/`, because the container can be reused
-   between runs.
+5. Runs the dlt load into `/tmp/<staging>/kbo.duckdb`, then `dbt build --project-dir
+   transform --profiles-dir transform` against that same file, then the `export_marts`
+   run-operation. All local; no credentials are involved up to this point.
+6. Runs `kbo publish`, which copies the `marts` schema -- and nothing else -- into the
+   MotherDuck database named by `MOTHERDUCK_DATABASE`, creating it if it does not exist.
+   `MOTHERDUCK_TOKEN` is injected by the runtime from `access_token_name` and reaches
+   DuckDB through the environment, never through a connection string that could be echoed
+   into a log.
+7. Verifies the result **in MotherDuck** -- row counts and the snapshot date landed in
+   each of the five marts, and that all five agree on the same snapshot date -- rather
+   than trusting a zero exit code. MotherDuck is what the Dive and the share read, so
+   that is what gets checked. A verification failure fails the run.
+8. Cleans up everything it staged under `/tmp/`, including the raw warehouse, because the
+   container can be reused between runs.
 
 It logs what it did at each step. It never logs a secret value.
 

@@ -44,7 +44,7 @@ jobs:
           path: data/demo/*.parquet
 
   motherduck:
-    name: Deploy to MotherDuck
+    name: Publish the marts to MotherDuck
     runs-on: ubuntu-latest
     needs: pipeline
     # Anything needing a secret is a separate job, gated on the secret existing, so a fork
@@ -63,7 +63,12 @@ jobs:
         if: env.HAS_TOKEN == 'true'
       - run: uv sync
         if: env.HAS_TOKEN == 'true'
-      - name: Build the marts on MotherDuck
+      # The whole pipeline runs locally. The raw layer -- natural persons included -- never
+      # reaches an account; only the five marts (~20 KB) are published, in the next step.
+      - name: Build the marts locally
+        if: env.HAS_TOKEN == 'true'
+        run: make demo
+      - name: Publish only the marts to MotherDuck
         if: env.HAS_TOKEN == 'true'
         env:
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
@@ -71,7 +76,9 @@ jobs:
           # A throwaway database: this is a smoke test on synthetic data and must never
           # touch the published `kbo` database that the share and the Dive read.
           MOTHERDUCK_DATABASE: kbo_ci
-        run: make demo
+          # `make demo` builds into its own warehouse file, never the real one.
+          DUCKDB_PATH: ${{ github.workspace }}/kbo_demo.duckdb
+        run: uv run kbo publish
       - name: Skipped (no MOTHERDUCK_TOKEN secret)
         if: env.HAS_TOKEN != 'true'
-        run: echo "Add the MOTHERDUCK_TOKEN repository secret to deploy to MotherDuck."
+        run: echo "Add the MOTHERDUCK_TOKEN repository secret to publish the marts to MotherDuck."

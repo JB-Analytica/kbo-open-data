@@ -89,6 +89,14 @@ Two ways, in order of convenience:
    account at all. This is the no-account path the rest of the repo already promises,
    and the Dive's own footer or an "about this data" panel should say so.
 
+## What is actually in the `kbo` database
+
+Five mart tables in the `marts` schema, and nothing else -- 276 rows, about 20 KB as
+Parquet. The raw register is never uploaded: the Flight loads and builds it in its own `/tmp` and
+publishes only the aggregates, so the 770,434 natural persons in the register are not in
+this database and cannot be reached through the share. A viewer attaching the share sees
+the same five tables that are committed as Parquet in `data/published/`.
+
 ## Publishing the share
 
 ```sql
@@ -96,7 +104,8 @@ CREATE SHARE kbo_open_data FROM kbo (ACCESS UNRESTRICTED, VISIBILITY HIDDEN, UPD
 ```
 
 Zero-copy, metadata only -- this does not duplicate the data. `UPDATE AUTOMATIC` keeps
-the share current as the Flight refreshes `kbo`, with no separate republish step.
+the share current as the Flight refreshes `kbo`, with no separate republish step. What is
+shared is the five aggregate marts, because that is all the database contains.
 
 **Open question, to check before submission, not to answer here:** a share is
 attachable by MotherDuck users in the same cloud region as the source database. If the

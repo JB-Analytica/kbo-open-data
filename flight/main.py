@@ -12,9 +12,15 @@ script clones the public repo into /tmp at a configurable ref and runs from ther
 keeps the Flight source small (it is capped at 200 KB) and means the Flight always runs
 the code that is actually on the ref it was told to use.
 
-Deliberately does one thing: fetch the daily update, load it, build the marts, export
-them, verify the result. A Flight that tries to do more is a Flight that fails in ways
-nobody can debug.
+Deliberately does one thing: fetch the daily update, load it into a local DuckDB file
+under /tmp, build the marts there, publish the marts (and only the marts) to MotherDuck,
+verify the result. A Flight that tries to do more is a Flight that fails in ways nobody
+can debug.
+
+The raw layer never leaves this container. 41 million rows, 770,434 of them natural
+persons, are loaded into /tmp -- the container has 150 GB of scratch -- and only the five
+aggregate marts, about 20 KB, are copied to MotherDuck. `MOTHERDUCK_TOKEN` is injected by
+the runtime from the Flight's access token; nothing is embedded here.
 """
 
 from __future__ import annotations
@@ -28,6 +34,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+#: Only used by the verification step, to fail loudly if a mart went missing entirely.
+#: The publish step discovers the marts from the built warehouse and hardcodes nothing.
 MART_NAMES = (
     "agg_enterprises_by_legal_form",
     "agg_enterprises_by_nace_section",
@@ -35,6 +43,9 @@ MART_NAMES = (
     "agg_enterprises_by_start_year",
     "agg_establishments_per_enterprise",
 )
+
+#: The Flight container's scratch space -- 150 GB, ephemeral, never leaves the machine.
+SCRATCH_ROOT = "/tmp"  # noqa: S108
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("kbo-flight")
@@ -137,10 +148,11 @@ def fetch_update_file(config: Config, staging_dir: Path) -> Path:
     return local_path
 
 
-def run_dlt_load(repo_dir: Path, zip_path: Path, base_env: dict[str, str]) -> None:
+def run_dlt_load(repo_dir: Path, zip_path: Path, warehouse: Path, base_env: dict[str, str]) -> None:
+    """Load the extract into a local DuckDB file under /tmp. Raw data goes no further."""
     env = {
         **base_env,
-        "DESTINATION": "motherduck",
+        "DUCKDB_PATH": str(warehouse),
         "KBO_ZIP": str(zip_path),
     }
     _run(
@@ -150,10 +162,13 @@ def run_dlt_load(repo_dir: Path, zip_path: Path, base_env: dict[str, str]) -> No
     )
 
 
-def run_dbt_build(repo_dir: Path, config: Config, base_env: dict[str, str]) -> None:
+def run_dbt_build(
+    repo_dir: Path, config: Config, warehouse: Path, base_env: dict[str, str]
+) -> None:
+    """Build staging, intermediate and the marts against the same local file."""
     env = {
         **base_env,
-        "DESTINATION": "motherduck",
+        "DUCKDB_PATH": str(warehouse),
         "KBO_MIN_CELL_SIZE": config.min_cell_size,
         "KBO_NACE_VERSION": config.nace_version,
     }
@@ -165,8 +180,6 @@ def run_dbt_build(repo_dir: Path, config: Config, base_env: dict[str, str]) -> N
             "transform",
             "--profiles-dir",
             "transform",
-            "--target",
-            "motherduck",
             "--threads",
             config.dbt_threads,
         ],
@@ -175,14 +188,31 @@ def run_dbt_build(repo_dir: Path, config: Config, base_env: dict[str, str]) -> N
     )
 
 
-def run_export_marts(repo_dir: Path, staging_dir: Path, base_env: dict[str, str]) -> None:
+def run_publish(repo_dir: Path, config: Config, warehouse: Path, base_env: dict[str, str]) -> None:
+    """Copy the marts -- and nothing else -- from the local warehouse to MotherDuck.
+
+    MOTHERDUCK_TOKEN is already in the environment, injected from the Flight's
+    `access_token_name`. It is never passed on a command line or in a connection string.
+    """
+    env = {
+        **base_env,
+        "DUCKDB_PATH": str(warehouse),
+        "DESTINATION": "motherduck",
+        "MOTHERDUCK_DATABASE": config.motherduck_database,
+    }
+    _run([sys.executable, "-m", "ingest.cli", "publish"], cwd=repo_dir, env=env)
+
+
+def run_export_marts(
+    repo_dir: Path, staging_dir: Path, warehouse: Path, base_env: dict[str, str]
+) -> None:
     # This writes Parquet inside the container's ephemeral /tmp, not to the repo's
     # data/published/ -- the Flight has no persistent filesystem of its own. It runs
     # the same run-operation the repo's Makefile uses, mainly so a broken export macro
     # fails the Flight rather than surfacing only when someone runs it by hand later.
     export_dir = staging_dir / "published"
     export_dir.mkdir(parents=True, exist_ok=True)
-    env = {**base_env, "DESTINATION": "motherduck"}
+    env = {**base_env, "DUCKDB_PATH": str(warehouse)}
     _run(
         [
             "dbt",
@@ -192,8 +222,6 @@ def run_export_marts(repo_dir: Path, staging_dir: Path, base_env: dict[str, str]
             "transform",
             "--profiles-dir",
             "transform",
-            "--target",
-            "motherduck",
             "--args",
             f"{{output_dir: {export_dir}}}",
         ],
@@ -203,11 +231,12 @@ def run_export_marts(repo_dir: Path, staging_dir: Path, base_env: dict[str, str]
 
 
 def verify_published_marts(database: str) -> None:
-    """Verify the marts actually landed, instead of trusting a zero exit code.
+    """Verify the marts landed **in MotherDuck**, instead of trusting a zero exit code.
 
-    Checks row counts and the snapshot date per mart, and that every mart agrees on the
-    same snapshot date -- a partial rebuild that leaves one mart on an older snapshot is
-    exactly the kind of failure a green dbt run does not surface.
+    This reads the published database, not the local build, because MotherDuck is what
+    the Dive and the share read. Checks row counts and the snapshot date per mart, and
+    that every mart agrees on the same snapshot date -- a partial publish that leaves one
+    mart on an older snapshot is exactly the kind of failure a green run does not surface.
     """
     import duckdb
 
@@ -221,25 +250,25 @@ def verify_published_marts(database: str) -> None:
             f"SELECT COUNT(*) AS row_count, MAX(snapshot_date) AS snapshot_date FROM {relation}"
         ).fetchone()
         if row is None:
-            raise FlightError(f"Could not query {relation} after the build.")
+            raise FlightError(f"Could not query {relation} in MotherDuck after the publish.")
         row_count, snapshot_date = row
         log.info("verify: %s -- %s rows, snapshot_date=%s", mart, row_count, snapshot_date)
         if row_count == 0:
-            raise FlightError(f"{mart} has zero rows after the build.")
+            raise FlightError(f"{mart} has zero rows in MotherDuck after the publish.")
         if snapshot_date is None:
-            raise FlightError(f"{mart} has a null snapshot_date after the build.")
+            raise FlightError(f"{mart} has a null snapshot_date in MotherDuck after the publish.")
         snapshot_dates.add(str(snapshot_date))
 
     if len(snapshot_dates) > 1:
-        raise FlightError(
-            f"Marts disagree on snapshot_date after the build: {sorted(snapshot_dates)}."
-        )
+        raise FlightError(f"Published marts disagree on snapshot_date: {sorted(snapshot_dates)}.")
     log.info("verify: all marts agree on snapshot_date=%s", next(iter(snapshot_dates)))
 
 
 def main() -> None:
     config = Config.from_env()
-    staging_dir = Path(tempfile.mkdtemp(prefix="kbo-flight-"))
+    # Explicitly /tmp: the container has 150 GB of scratch there, which is where the raw
+    # warehouse lives and where it stays.
+    staging_dir = Path(tempfile.mkdtemp(prefix="kbo-flight-", dir=SCRATCH_ROOT))
     log.info("staging under %s", staging_dir)
 
     try:
@@ -250,10 +279,15 @@ def main() -> None:
         repo_dir = clone_repo(config, staging_dir)
         zip_path = fetch_update_file(config, staging_dir)
 
+        # The warehouse lives in the container's own scratch space (150 GB under /tmp),
+        # and is deleted with everything else in the `finally` below.
+        warehouse = staging_dir / "kbo.duckdb"
+
         base_env = {**os.environ}
-        run_dlt_load(repo_dir, zip_path, base_env)
-        run_dbt_build(repo_dir, config, base_env)
-        run_export_marts(repo_dir, staging_dir, base_env)
+        run_dlt_load(repo_dir, zip_path, warehouse, base_env)
+        run_dbt_build(repo_dir, config, warehouse, base_env)
+        run_export_marts(repo_dir, staging_dir, warehouse, base_env)
+        run_publish(repo_dir, config, warehouse, base_env)
         verify_published_marts(config.motherduck_database)
         log.info("refresh complete")
     except subprocess.CalledProcessError as exc:
@@ -263,8 +297,8 @@ def main() -> None:
         log.error(str(exc))
         sys.exit(1)
     finally:
-        # The container can be reused between runs -- never leave the extract or the
-        # clone behind for the next one to trip over.
+        # The container can be reused between runs -- never leave the extract, the clone
+        # or the raw warehouse behind for the next one to trip over.
         shutil.rmtree(staging_dir, ignore_errors=True)
         log.info("cleaned up %s", staging_dir)
 

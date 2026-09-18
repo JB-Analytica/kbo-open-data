@@ -2,6 +2,11 @@
 
 Everything is configuration rather than an argument because the same code runs from a
 laptop, a Makefile and a MotherDuck Flight, and only the Flight has credentials.
+
+`DESTINATION` names where the *published marts* go, not where the pipeline runs. The
+load and the dbt build always run against a local DuckDB file, so the raw layer -- and
+the natural persons in it -- never leaves the machine that loaded it. See
+`ingest/publish.py`.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+#: Where `kbo publish` sends the marts. `duckdb` means "nowhere, they stay local".
 DESTINATIONS = ("duckdb", "motherduck")
 
 
@@ -59,6 +65,11 @@ class Settings:
             sftp_dir=os.getenv("KBO_SFTP_DIR") or None,
         )
 
+    @property
+    def publishes_to_motherduck(self) -> bool:
+        """Whether a build should be followed by a publish to MotherDuck."""
+        return self.destination == "motherduck"
+
     def require_zip(self) -> Path:
         if self.kbo_zip is None:
             raise ConfigError(
@@ -72,23 +83,14 @@ class Settings:
 
 
 def dlt_destination(settings: Settings) -> Destination:
-    """Return the dlt destination for the configured DESTINATION.
+    """Return the dlt destination for the load: always the local DuckDB file.
 
-    MotherDuck has no anonymous mode and no database name that is safe to guess. Without
-    an explicit token dlt would reach for whatever token is in the ambient environment,
-    which is how a load ends up in somebody else's account. Refuse instead.
+    There is deliberately no destination switch here. The raw layer holds 770,434 natural
+    persons, whose non-publication is the premise of this project, so it is loaded locally
+    and published from there -- `DESTINATION=motherduck` adds a publish step, it does not
+    move the pipeline. A cloud destination cannot be reached from this function at all,
+    which is a stronger guarantee than a filter would be.
     """
     import dlt
 
-    if settings.destination == "motherduck":
-        if not settings.motherduck_token:
-            raise ConfigError(
-                "DESTINATION=motherduck needs MOTHERDUCK_TOKEN. Set it to a service-account "
-                "token (a Flight injects one automatically), or use DESTINATION=duckdb."
-            )
-        # The token goes through the environment, not into the connection string: dlt and
-        # DuckDB both echo a connection string into logs on failure, and a Flight's logs
-        # are readable by anyone who can see the Flight.
-        os.environ.setdefault("MOTHERDUCK_TOKEN", settings.motherduck_token)
-        return dlt.destinations.motherduck(credentials=f"md:{settings.motherduck_database}")
     return dlt.destinations.duckdb(str(settings.duckdb_path))

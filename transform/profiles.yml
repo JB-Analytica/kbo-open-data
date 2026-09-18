@@ -1,17 +1,13 @@
-# Checked in on purpose: neither target carries a secret. MotherDuck reads MOTHERDUCK_TOKEN
-# from the environment, and the local target is just a file path.
-# One project, two targets -- switching destination is one environment variable and zero
-# model changes.
+# Checked in on purpose: this profile carries no secret at all -- it is a local file path.
+# One project, one target. dbt always builds against the local DuckDB file; the marts are
+# copied to MotherDuck afterwards by `kbo publish`, so no model ever knows or cares where
+# the published copy lives. Switching to MotherDuck stays one environment variable
+# (DESTINATION) and zero model changes.
 kbo:
-  target: "{{ env_var('DESTINATION', 'duckdb') }}"
+  target: duckdb
   outputs:
     duckdb:
       type: duckdb
       path: "{{ env_var('DUCKDB_PATH', '../kbo.duckdb') }}"
-      schema: main
-      threads: 4
-    motherduck:
-      type: duckdb
-      path: "md:{{ env_var('MOTHERDUCK_DATABASE', 'kbo') }}"
       schema: main
       threads: 4

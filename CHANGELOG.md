@@ -16,6 +16,27 @@ All notable changes to this project are documented here, following
 
 ### Changed
 
+- **Only the marts are published to MotherDuck.** `DESTINATION=motherduck` used to run the
+  whole pipeline against MotherDuck: 41 million raw rows loaded there by dlt, with dbt
+  building on top. It now means *where the published marts go*. dlt always loads into a
+  local DuckDB file, dbt always builds against that file, and a new publish step
+  (`ingest/publish.py`, `kbo publish`, `make deploy`) copies the five aggregate marts --
+  276 rows, about 20 KB as Parquet -- into MotherDuck afterwards. Switching to
+  MotherDuck is still a single environment variable with no model changes.
+
+  The point is not the several GB of a 10 GB free tier, or the 41 million rows that no
+  longer cross the network on every Flight run. It is that **the raw layer never leaves the
+  machine it was loaded on, so the 770,434 natural persons in the register cannot reach a
+  cloud account at all.** `dlt_destination` has no cloud branch left to take, which is a
+  stronger guarantee than a filter would be.
+
+  Consequences: `transform/profiles.yml` has one `duckdb` output and a fixed target instead
+  of a `DESTINATION`-driven pair; the MotherDuck Flight loads and builds under `/tmp` (150 GB
+  of container scratch) and verifies the marts in MotherDuck after publishing them; the CI
+  MotherDuck job builds locally and publishes only the marts to `kbo_ci`. `make build` and
+  `make demo` are unchanged and still credential-free. The publish path is tested against a
+  second local DuckDB file, so it needs no account, token or network.
+
 - The sector mart reads **NACE 2025 (Rev. 2.1)** by default instead of NACE 2008 (Rev. 2);
   `KBO_NACE_VERSION` still overrides it. This is not a relabelling: Rev. 2.1 has 22 sections
   (A–V) against Rev. 2's 21, and every division from 61 up sits one letter further along, so

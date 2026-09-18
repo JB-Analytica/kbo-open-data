@@ -1,4 +1,4 @@
-"""Configuration, and the one rule that matters: never guess a destination account."""
+"""Configuration, and the one rule that matters: the load can only ever go local."""
 
 from __future__ import annotations
 
@@ -24,10 +24,18 @@ def test_unknown_destination_is_rejected(monkeypatch: pytest.MonkeyPatch, tmp_pa
         Settings.from_env(env_file=tmp_path / "absent.env")
 
 
-def test_motherduck_without_a_token_is_an_error() -> None:
-    settings = Settings(destination="motherduck")
-    with pytest.raises(ConfigError, match="MOTHERDUCK_TOKEN"):
-        dlt_destination(settings)
+def test_the_load_destination_is_always_local(tmp_path: Path) -> None:
+    """DESTINATION says where the marts are published, never where the raw layer lands.
+
+    41 million raw rows, 770,434 of them natural persons, must not be reachable from the
+    loader at all -- so `motherduck` here still resolves to the local DuckDB file.
+    """
+    local = tmp_path / "kbo.duckdb"
+    for destination in ("duckdb", "motherduck"):
+        settings = Settings(
+            destination=destination, duckdb_path=local, motherduck_token="not-a-real-token"
+        )
+        assert dlt_destination(settings).config_params["credentials"] == str(local)
 
 
 def test_missing_zip_says_what_to_do() -> None:

@@ -64,6 +64,9 @@ testpaths = ["tests"]
 [tool.poe.tasks]
 lint = "ruff check ."
 fmt = "ruff format ."
+# CI runs `ruff format --check`, so `poe check` has to as well. It did not once, and a
+# green `poe check` was followed by a red build.
+fmtcheck = "ruff format --check ."
 typecheck = "ty check ingest"
 test = "pytest"
-check = ["lint", "typecheck", "test"]
+check = ["lint", "fmtcheck", "typecheck", "test"]

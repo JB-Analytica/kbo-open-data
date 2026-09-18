@@ -1,4 +1,8 @@
-"""`kbo` -- the extract-and-load commands. dbt takes over from `kbo_raw`."""
+"""`kbo` -- the extract-and-load commands, plus the publish step.
+
+The load always writes to a local DuckDB file; `kbo publish` is the only command that
+talks to a cloud account, and it moves the five aggregate marts and nothing else.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +18,8 @@ from ingest.config import REPO_ROOT, Settings
 
 app = typer.Typer(
     name="kbo",
-    help="Load the Belgian company register (KBO Open Data) into DuckDB or MotherDuck.",
+    help="Load the Belgian company register (KBO Open Data) into DuckDB, and publish "
+    "the aggregate marts.",
     no_args_is_help=True,
     add_completion=False,
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -62,6 +67,50 @@ def load(
     except Exception as exc:
         raise _fail(str(exc)) from exc
     typer.echo(str(info))
+
+
+@app.command()
+def publish(
+    target: Annotated[
+        str | None,
+        typer.Option(
+            "--to",
+            help="Target for the marts: md:<database>, or a path to a DuckDB file. "
+            "Defaults to MotherDuck when DESTINATION=motherduck.",
+        ),
+    ] = None,
+    source: Annotated[
+        Path | None,
+        typer.Option("--from", help="Warehouse to publish from. Defaults to DUCKDB_PATH."),
+    ] = None,
+) -> None:
+    """Copy the aggregate marts to the published database. Raw data never moves."""
+    from ingest import publish as publish_module
+
+    try:
+        settings = Settings.from_env()
+        source_path = source if source is not None else settings.duckdb_path
+        if target is not None:
+            destination = publish_module.PublishTarget.parse(target)
+        elif settings.publishes_to_motherduck:
+            destination = publish_module.motherduck_target(settings)
+        else:
+            raise _fail(
+                f"DESTINATION={settings.destination} keeps the marts local, so there is "
+                "nothing to publish. Set DESTINATION=motherduck (with MOTHERDUCK_TOKEN) "
+                "or pass --to md:<database> or --to <path to a DuckDB file>."
+            )
+        marts = publish_module.publish_marts(
+            source_path, destination, motherduck_token=settings.motherduck_token
+        )
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        raise _fail(str(exc)) from exc
+
+    for mart in marts:
+        typer.echo(f"{mart.name}\t{mart.row_count}")
+    typer.echo(f"published {len(marts)} marts to {destination}")
 
 
 @app.command()

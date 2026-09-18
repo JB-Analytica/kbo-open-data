@@ -5,6 +5,10 @@
 #
 #   make demo      synthetic extract -> marts -> Parquet. Needs nothing but this repo.
 #   make build     the real thing, from the KBO zip named by KBO_ZIP in .env.
+#   make deploy    build locally, then publish the five marts (and only those) to MotherDuck.
+#
+# The load and the dbt build always run against a local DuckDB file. Raw data never
+# leaves this machine; only the ~20 KB of aggregates are published.
 
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
@@ -14,6 +18,7 @@ UV := uv run
 
 # dbt runs with its project directory as the working directory, so a relative DUCKDB_PATH
 # would land inside transform/. Resolve it against the repo root once, here.
+# DESTINATION selects where `make deploy` publishes the marts, not where the pipeline runs.
 DESTINATION ?= duckdb
 DUCKDB_PATH ?= $(ROOT)/kbo.duckdb
 # Real runs publish to data/published/, which is committed. The demo publishes to
@@ -52,6 +57,8 @@ load:  ## Load the KBO zip named by KBO_ZIP into the warehouse
 transform:  ## Run dbt: staging, intermediate and the five aggregate marts
 	$(DBT) build $(DBT_DIRS)
 
+# `make publish` writes Parquet to the repo; `make publish-motherduck` copies the marts
+# into a cloud database. Two different publishing acts, neither of which moves raw data.
 .PHONY: publish
 publish:  ## Write the marts to data/published/ as Parquet
 	$(DBT) run-operation export_marts $(DBT_DIRS) --args '{"output_dir": "$(PUBLISHED_DIR)"}'
@@ -72,9 +79,12 @@ demo: demo-extract  ## Run the whole pipeline on the synthetic extract
 test:  ## Lint, type-check and run the Python tests
 	$(UV) poe check
 
+.PHONY: publish-motherduck
+publish-motherduck:  ## Copy the five marts (and nothing else) to MotherDuck (needs MOTHERDUCK_TOKEN)
+	DESTINATION=motherduck $(UV) kbo publish
+
 .PHONY: deploy
-deploy:  ## Run the pipeline against MotherDuck (needs MOTHERDUCK_TOKEN)
-	DESTINATION=motherduck $(MAKE) build
+deploy: build publish-motherduck  ## Build locally, then publish only the marts to MotherDuck
 
 .PHONY: clean
 clean:  ## Remove the local warehouse, dbt artefacts and the synthetic extract

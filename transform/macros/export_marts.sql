@@ -2,8 +2,8 @@
     Write every mart to Parquet so the repo can publish a release without a warehouse.
 
     A run-operation rather than a post-hook: publishing is a deliberate act, not a side
-    effect of building. Works against both targets -- MotherDuck's COPY writes to the
-    client's filesystem exactly as local DuckDB's does.
+    effect of building. It runs against the local warehouse the project always builds in;
+    the cloud copy of the marts is made separately by `kbo publish`.
 
         dbt run-operation export_marts --project-dir transform --profiles-dir transform
         dbt run-operation export_marts --args '{output_dir: /tmp/out}' ...

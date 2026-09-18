@@ -82,7 +82,7 @@ attribution travels with the data rather than living only in this file.
 ## What is not in here, on purpose
 
 The register includes sole traders registered as natural persons. Their name and address
-are personal data. This pipeline is built so that none of it can leak, in three independent
+are personal data. This pipeline is built so that none of it can leak, in four independent
 layers:
 
 1. **A column-level allowlist at the extract step.** `ingest/kbo_source.py` opens only the
@@ -95,6 +95,10 @@ layers:
 3. **Small-cell suppression.** Any aggregate cell below five entities is rolled into a
    single `Other (suppressed)` row, and if that row is itself below five it is dropped.
    Cheap insurance against re-identification in a thin slice.
+4. **The raw layer never leaves the machine that loaded it.** dlt has no cloud destination
+   to reach for: it always writes a local DuckDB file, and only the aggregate marts are
+   ever copied anywhere else. Even with a MotherDuck token on the command line, the
+   770,434 natural persons cannot reach a cloud account.
 
 No company-level row is published, anywhere. The practical effect is that the GDPR surface
 of the published artefact is zero, and a test proves it: the suite scans every text column
@@ -154,19 +158,35 @@ local DuckDB file. No account is involved at any point.
 
 ## Deploying to MotherDuck (optional)
 
-One environment variable, no model changes — the dbt project has one profile with two
-targets and no model knows which one it is running on.
+One environment variable, no model changes:
 
 ```bash
 export DESTINATION=motherduck
 export MOTHERDUCK_TOKEN=...   # a service account token, not a personal one
-make build
+make deploy
 ```
 
+**Only the five marts are published — 276 rows, about 20 KB as Parquet.** The
+pipeline itself always runs locally: dlt loads the extract into a DuckDB file on this machine, dbt builds against
+that same file, and `make deploy` then copies the mart tables — and nothing else — into
+MotherDuck. `DESTINATION` names *where the published marts go*, not where the pipeline
+runs, and no model knows the difference either way.
+
+That is a privacy property, not a performance one. **The raw layer never leaves the
+machine it was loaded on, so the 770,434 natural persons in the register cannot reach a
+cloud account at all** — there is no code path from `kbo_raw` to MotherDuck to audit,
+because the loader has no cloud destination to reach for. It is also simply cheaper: 41
+million raw rows would be several GB of a 10 GB free tier, and a network round trip on
+every refresh, to serve 20 KB of answers.
+
+`kbo publish --to <path-to-a-duckdb-file>` does the same copy into a second local file,
+which is how the publish path is tested with no account and no network.
+
 `flight/` holds the version-controlled definition of a MotherDuck Flight that refreshes the
-marts daily on MotherDuck's own runtime. `dive/` documents the published visualisation.
-Both have their own README, including the two things still unresolved: the exact hour the
-KBO daily file appears, and whether SFTP access has been granted.
+marts daily on MotherDuck's own runtime — loading and building in the container's own
+`/tmp`, publishing only the marts. `dive/` documents the published visualisation. Both have
+their own README, including the two things still unresolved: the exact hour the KBO daily
+file appears, and whether SFTP access has been granted.
 
 ## Working on it
 
