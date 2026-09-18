@@ -8,6 +8,9 @@ person names) and `contact.csv` (e-mail, phone, web) are absent on purpose -- no
 downstream needs them, so they are never opened at all. Everything else about this module
 is plumbing; the table below is the privacy claim.
 
+The allowlist is enforced by `pyarrow.csv`'s `include_columns`, which projects at parse
+time: a column outside it is never decoded, let alone turned into a Python object.
+
 Every column lands as TEXT. KBO writes dates day-first (`31-12-2026`), and letting dlt
 infer a type turns that into either a wrong date or a failed load. dbt casts in staging.
 """
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import os
 import re
 import zipfile
@@ -24,9 +28,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import IO, Any, cast
 
 import dlt
+import pyarrow as pa
+import pyarrow.csv as pacsv
 from dlt.common.pipeline import LoadInfo
 
 from ingest.config import Settings, dlt_destination
@@ -37,6 +43,8 @@ from ingest.config import Settings, dlt_destination
 os.environ.setdefault("NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID", "true")
 os.environ.setdefault("NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID", "true")
 
+logger = logging.getLogger(__name__)
+
 PIPELINE_NAME = "kbo"
 DATASET_NAME = "kbo_raw"
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +52,18 @@ DEFAULT_PIPELINES_DIR = REPO_ROOT / ".dlt" / "pipelines"
 
 META_FILE = "meta.csv"
 SNAPSHOT_DATE_VARIABLE = "SnapshotDate"
+EXTRACT_TYPE_VARIABLE = "ExtractType"
+FULL_EXTRACT_TYPE = "full"
 KBO_DATE_FORMAT = "%d-%m-%Y"
+
+# Parquet, so DuckDB bulk-reads the load package instead of replaying 41M INSERTs.
+LOADER_FILE_FORMAT = "parquet"
+
+# One CSV block per Arrow batch. Peak memory scales with this and read throughput does
+# not: measured on activity.csv, 64 MiB blocks cost 3.1 GB of RSS and 4 MiB cost 0.4 GB,
+# both at ~4 s. Batches are still thousands of rows, which is the point -- 34M rows cross
+# the Python boundary a few hundred times instead of 34 million.
+CSV_BLOCK_SIZE = 4 << 20
 
 
 class ExtractError(RuntimeError):
@@ -65,6 +84,9 @@ class KboFile:
     source_columns: tuple[str, ...]
     # Normalised names, because a primary key is asserted against what lands.
     primary_key: tuple[str, ...]
+    # KBO restates this file in full in every extract, update files included, so merging
+    # it would only let a retired row survive its own removal.
+    always_full: bool = False
 
     @property
     def columns(self) -> dict[str, str]:
@@ -81,12 +103,14 @@ KBO_FILES: tuple[KboFile, ...] = (
         table="meta",
         source_columns=("Variable", "Value"),
         primary_key=("variable",),
+        always_full=True,
     ),
     KboFile(
         filename="code.csv",
         table="code",
         source_columns=("Category", "Code", "Language", "Description"),
         primary_key=("category", "code", "language"),
+        always_full=True,
     ),
     KboFile(
         filename="enterprise.csv",
@@ -149,22 +173,48 @@ NEVER_READ = ("denomination.csv", "contact.csv")
 
 
 @contextmanager
-def _reader(zip_path: Path, filename: str) -> Iterator[csv.DictReader]:
-    """Open one member of the zip as a csv.DictReader.
+def _member(zip_path: Path, filename: str) -> Iterator[IO[bytes]]:
+    """Open one member of the zip as a byte stream.
 
-    A real extract is gigabytes, so this never materialises a file: `zipfile.open` gives a
-    stream, `TextIOWrapper` decodes it (utf-8-sig, because KBO leads some files with a BOM)
-    and `csv.DictReader` handles the full quoting and the CRLF line endings.
+    A real extract is gigabytes, so this never materialises a file: `zipfile.open` gives
+    a stream and both readers below consume it incrementally.
     """
     with zipfile.ZipFile(zip_path) as archive:
         try:
-            member = archive.open(filename)
+            handle = archive.open(filename)
         except KeyError as exc:
             raise ExtractError(
                 f"{filename} is missing from {zip_path}. Is this a KBO Open Data zip?"
             ) from exc
-        with member, io.TextIOWrapper(member, encoding="utf-8-sig", newline="") as text:
-            yield csv.DictReader(text)
+        with handle:
+            yield handle
+
+
+@contextmanager
+def _reader(zip_path: Path, filename: str) -> Iterator[csv.DictReader]:
+    """Open one member of the zip as a csv.DictReader.
+
+    Only the six-row `meta.csv` is read this way -- the bulk files go through pyarrow --
+    because meta is consulted before there is a pipeline and row-at-a-time reads clearer.
+    `utf-8-sig`, because KBO leads some files with a BOM.
+    """
+    with _member(zip_path, filename) as handle, io.TextIOWrapper(
+        handle, encoding="utf-8-sig", newline=""
+    ) as text:
+        yield csv.DictReader(text)
+
+
+def _header(zip_path: Path, filename: str) -> list[str]:
+    """The file's header names, read without parsing the body.
+
+    pyarrow's own complaint about an `include_columns` entry names one column and not the
+    file's actual contents, which is no help when KBO changes a layout. Reading the header
+    first keeps the existing, specific `ExtractError`.
+    """
+    with _member(zip_path, filename) as handle:
+        head = handle.read(1 << 16)
+    first_line = head.decode("utf-8-sig", errors="replace").splitlines()[:1]
+    return next(csv.reader(first_line), [])
 
 
 def _require_columns(spec: KboFile, header: Sequence[str] | None) -> None:
@@ -178,28 +228,105 @@ def _require_columns(spec: KboFile, header: Sequence[str] | None) -> None:
         )
 
 
+def _convert_options(spec: KboFile) -> pacsv.ConvertOptions:
+    return pacsv.ConvertOptions(
+        # The allowlist as a parse-time projection: nothing else is even decoded.
+        include_columns=list(spec.source_columns),
+        # Typing is dbt's job; inference over a day-first date is the classic bite.
+        column_types=dict.fromkeys(spec.source_columns, pa.string()),
+        # KBO writes an absent value as `""`, and staging compares against '' not NULL.
+        strings_can_be_null=False,
+    )
+
+
+def _landed_schema(spec: KboFile) -> pa.Schema:
+    """Every column a string under its landed name, key columns marked non-nullable so the
+    Arrow schema agrees with the primary key dlt derives from the same tuple."""
+    return pa.schema(
+        [
+            pa.field(_snake(source), pa.string(), nullable=_snake(source) not in spec.primary_key)
+            for source in spec.source_columns
+        ]
+    )
+
+
+def _batches(zip_path: Path, spec: KboFile) -> Iterator[pa.RecordBatch]:
+    """Yield Arrow batches of the allowlisted columns, under their landed names."""
+    _require_columns(spec, _header(zip_path, spec.filename))
+    schema = _landed_schema(spec)
+    with _member(zip_path, spec.filename) as handle:
+        try:
+            batches = pacsv.open_csv(
+                handle,
+                read_options=pacsv.ReadOptions(block_size=CSV_BLOCK_SIZE),
+                # A quoted field may contain a line break -- a street name in address.csv
+                # does -- and pyarrow would otherwise split the row at it. `csv` handled
+                # this for free; here it has to be asked for.
+                parse_options=pacsv.ParseOptions(newlines_in_values=True),
+                convert_options=_convert_options(spec),
+            )
+            for batch in batches:
+                # Selected by name rather than trusting the batch's order: the allowlist
+                # decides what leaves this function, a second time and for free.
+                columns = [batch.column(source) for source in spec.source_columns]
+                yield pa.RecordBatch.from_arrays(columns, schema=schema)
+        except pa.ArrowKeyError as exc:
+            raise ExtractError(
+                f"{spec.filename}: {exc}. The KBO layout changed, or this is not a KBO extract."
+            ) from exc
+
+
 def _rows(zip_path: Path, spec: KboFile) -> Iterator[dict[str, str]]:
-    """Yield allowlisted columns only. Extra columns in the file are ignored silently."""
-    keep = spec.columns
-    with _reader(zip_path, spec.filename) as reader:
-        _require_columns(spec, reader.fieldnames)
-        for row in reader:
-            yield {target: row[source] or "" for source, target in keep.items()}
+    """Row-wise view of `_batches`, so the allowlist can be inspected without a warehouse.
+
+    The load path yields the batches themselves: turning 34M rows into dicts is precisely
+    the cost this module is shaped to avoid.
+    """
+    for batch in _batches(zip_path, spec):
+        yield from batch.to_pylist()
 
 
-def _make_resource(zip_path: Path, spec: KboFile) -> Any:
+def _make_resource(zip_path: Path, spec: KboFile, write_disposition: str) -> Any:
     text_columns = cast(Any, {column: {"data_type": "text"} for column in spec.columns.values()})
 
     @dlt.resource(
         name=spec.table,
-        write_disposition="merge",
+        write_disposition=cast(Any, write_disposition),
         primary_key=list(spec.primary_key),
         columns=text_columns,
+        file_format=cast(Any, LOADER_FILE_FORMAT),
     )
-    def resource() -> Iterator[dict[str, str]]:
-        yield from _rows(zip_path, spec)
+    def resource() -> Iterator[pa.RecordBatch]:
+        yield from _batches(zip_path, spec)
 
     return resource
+
+
+def _meta_value(zip_path: Path, variable: str) -> str | None:
+    with _reader(zip_path, META_FILE) as reader:
+        for row in reader:
+            if row.get("Variable") == variable:
+                return (row.get("Value") or "").strip()
+    return None
+
+
+def extract_type(zip_path: Path | str) -> str:
+    """`meta.csv`'s ExtractType: `full` for a complete restatement, otherwise an update."""
+    value = _meta_value(Path(zip_path), EXTRACT_TYPE_VARIABLE)
+    if not value:
+        raise ExtractError(
+            f"{META_FILE} has no {EXTRACT_TYPE_VARIABLE} row, so there is no way to tell a "
+            "full extract from an update file. Is this a KBO Open Data zip?"
+        )
+    return value.lower()
+
+
+def _write_disposition(spec: KboFile, is_full_extract: bool) -> str:
+    """A full extract restates every row, so `replace` is both correct and far cheaper:
+    `merge` stages a second copy of all 41M rows to reach the same result. An update file
+    carries only what changed, so it has to merge on the primary key.
+    """
+    return "replace" if is_full_extract or spec.always_full else "merge"
 
 
 @dlt.source(name=PIPELINE_NAME)
@@ -208,7 +335,19 @@ def kbo_source(zip_path: Path | str) -> list[Any]:
     path = Path(zip_path)
     if not path.exists():
         raise ExtractError(f"{path} does not exist.")
-    return [_make_resource(path, spec) for spec in KBO_FILES]
+    kind = extract_type(path)
+    is_full = kind == FULL_EXTRACT_TYPE
+    dispositions = {spec.table: _write_disposition(spec, is_full) for spec in KBO_FILES}
+    # Switching between replace and merge without saying so would be a nasty surprise.
+    logger.info(
+        "%s: %s=%r, treated as %s; write disposition %s",
+        path.name,
+        EXTRACT_TYPE_VARIABLE,
+        kind,
+        "a full restatement" if is_full else "an update file",
+        ", ".join(f"{table}={mode}" for table, mode in sorted(dispositions.items())),
+    )
+    return [_make_resource(path, spec, dispositions[spec.table]) for spec in KBO_FILES]
 
 
 def snapshot_date(zip_path: Path | str) -> date:
@@ -217,19 +356,16 @@ def snapshot_date(zip_path: Path | str) -> date:
     The Makefile and the published Flight need it for the attribution line, which has to
     name the extract date, and they need it before there is a warehouse to ask.
     """
-    with _reader(Path(zip_path), META_FILE) as reader:
-        for row in reader:
-            if row.get("Variable") != SNAPSHOT_DATE_VARIABLE:
-                continue
-            raw = (row.get("Value") or "").strip()
-            try:
-                return datetime.strptime(raw, KBO_DATE_FORMAT).date()
-            except ValueError as exc:
-                raise ExtractError(
-                    f"{META_FILE}: {SNAPSHOT_DATE_VARIABLE} is {raw!r}, "
-                    f"which is not a day-first {KBO_DATE_FORMAT} date."
-                ) from exc
-    raise ExtractError(f"{META_FILE} has no {SNAPSHOT_DATE_VARIABLE} row.")
+    raw = _meta_value(Path(zip_path), SNAPSHOT_DATE_VARIABLE)
+    if raw is None:
+        raise ExtractError(f"{META_FILE} has no {SNAPSHOT_DATE_VARIABLE} row.")
+    try:
+        return datetime.strptime(raw, KBO_DATE_FORMAT).date()
+    except ValueError as exc:
+        raise ExtractError(
+            f"{META_FILE}: {SNAPSHOT_DATE_VARIABLE} is {raw!r}, "
+            f"which is not a day-first {KBO_DATE_FORMAT} date."
+        ) from exc
 
 
 def build_pipeline(destination: Any, pipelines_dir: Path | str | None = None) -> dlt.Pipeline:

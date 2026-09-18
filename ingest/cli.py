@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -22,6 +23,20 @@ app = typer.Typer(
 DEFAULT_DEMO_ZIP = Path("data/raw/KboOpenData_SYNTHETIC_Full.zip")
 
 
+def _show_ingest_logs() -> None:
+    """Send `ingest`'s own INFO lines to stderr.
+
+    The load picks replace or merge from the extract itself, and a silent switch between
+    the two is the kind of surprise that is only noticed a warehouse later. dlt's own
+    logging is left alone.
+    """
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    ingest_logger = logging.getLogger("ingest")
+    ingest_logger.addHandler(handler)
+    ingest_logger.setLevel(logging.INFO)
+
+
 def _fail(message: str) -> typer.Exit:
     """A configuration or extract problem is the user's to fix, so print it, not a stack."""
     typer.secho(f"Error: {message}", fg=typer.colors.RED, err=True)
@@ -38,6 +53,7 @@ def load(
     """Load the KBO extract into the `kbo_raw` schema."""
     from ingest import kbo_source
 
+    _show_ingest_logs()
     settings = Settings.from_env()
     if zip_path is not None:
         settings = dataclasses.replace(settings, kbo_zip=zip_path)

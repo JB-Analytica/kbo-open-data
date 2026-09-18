@@ -30,6 +30,20 @@ All notable changes to this project are documented here, following
 - The seed's shape changed, so an existing warehouse needs one
   `dbt seed --full-refresh --select nace_section`. A fresh clone needs nothing.
 
+### Changed
+
+- The extract reads through pyarrow rather than a row-by-row Python loop, and dlt hands
+  DuckDB Parquet instead of INSERT statements. A full real extract loads in **41 seconds**
+  where it took about 35 minutes.
+- Write disposition comes from `meta.csv`'s `ExtractType`. A full extract is a complete
+  restatement, so it uses `replace`; an update file keeps `merge` on the primary keys.
+  `meta` and `code` are always replaced, since they restate in full either way. Dropping
+  merge on full loads also removes dlt's duplicate staging dataset: the warehouse is
+  895 MB where it was 1.9 GB.
+- `activity` now holds 34,463,639 rows rather than 34,462,748. The file genuinely contains
+  891 exact duplicate rows, which `merge` was silently collapsing because the whole row is
+  the key. No published figure changes.
+
 ### Fixed
 
 - First run against a real extract (2026-09-17) corrected three assumptions the synthetic
