@@ -95,6 +95,12 @@ it is the only copy of the rule a cloud session sees.
 - There is **no anonymous download**. Registration at
   `kbopub.economie.fgov.be/kbo-open-data` is required, and the zip is placed in `data/raw/`
   by hand. Nothing in this repo may try to scrape the portal.
+- **Shares are region-scoped.** The organisation is on `aws-eu-central-1`, so only EU
+  MotherDuck users can attach `kbo_open_data` or use the gallery's "copy to account".
+  Viewing a published Dive is unaffected, because the gallery embeds it. Checked
+  19 September 2026; do not reopen it as a blocker.
+- **The marts live in the service account's workspace, not a personal one.** A personal
+  MotherDuck session cannot see the `kbo` database at all; reach it through the share.
 - The Flight needs SFTP access that FOD Economie grants on request
   (`kbo-bce-webservice@economie.fgov.be`). Until it is granted, the refresh is manual and the
   Flight stays on-demand.

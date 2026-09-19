@@ -107,16 +107,36 @@ Zero-copy, metadata only -- this does not duplicate the data. `UPDATE AUTOMATIC`
 the share current as the Flight refreshes `kbo`, with no separate republish step. What is
 shared is the five aggregate marts, because that is all the database contains.
 
-**Open question, to check before submission, not to answer here:** a share is
-attachable by MotherDuck users in the same cloud region as the source database. If the
-marts live in the EU region and most Dive Gallery traffic is in the US, that could block
-viewers from attaching the share (though the Parquet-in-`data/published/` path above
-would still work for them). Check, before submitting to the gallery:
+**Region: checked, and it does not block the submission.** Resolved 19 September 2026.
 
-- which region the Flight's `kbo` database actually lives in;
-- where gallery viewers typically are;
-- whether MotherDuck supports publishing the same marts into a share in more than one
-  region, and if so, what that costs to set up and keep in sync.
+The organisation's compute and storage are in `aws-eu-central-1` (Europe, Frankfurt), and
+MotherDuck's share documentation is explicit that shares are region-scoped: only users in
+the same cloud region can attach one, and cross-region attachment does not work even with
+the share URL.
+
+That sounds fatal and is not, because a gallery visitor does not attach anything. The Dive
+Gallery renders a public Dive as a live interactive embed on its own page, so viewing --
+which is what a submission is for -- is unaffected by region. What region does cost:
+
+| | US visitor |
+|---|---|
+| Viewing the Dive in the gallery | works |
+| "Copy to account", duplicating the Dive to run under their own token | EU only |
+| Attaching `kbo_open_data` to query it directly | EU only |
+
+For a dataset about Belgian companies, an audience skewed to Europe is a reasonable trade.
+Anyone outside the region who wants the data still has the Parquet in `data/published/`,
+which needs no MotherDuck account at all -- that path carries more weight than it looked
+like it would when it was added.
+
+Do not move the marts to a US region to chase this. It would split the source of truth
+across two databases for a secondary feature, and the Flight would have to keep both in
+step.
+
+One choice left open deliberately: `VISIBILITY HIDDEN` makes the share reachable by URL but
+unlisted in MotherDuck's own share discovery. The gallery supplies the link, so hidden is
+sufficient; `DISCOVERABLE` would additionally list it for MotherDuck users browsing shares.
+Either is defensible for a public showcase.
 
 ## The Dive Gallery submission
 
